@@ -1,3 +1,87 @@
+/* ── Light Theme (default) ── */
+:root {
+  --bg-app:        #f0f2f5;
+  --bg-card:       #ffffff;
+  --bg-nav:        #1a2535;
+  --bg-input:      #ffffff;
+  --bg-hover:      #f8fafc;
+  --bg-table-head: #f8fafc;
+  --bg-badge-blue: #dbeafe;
+  --bg-badge-green:#dcfce7;
+  --bg-badge-yellow:#fef9c3;
+  --bg-badge-red:  #fee2e2;
+  --bg-badge-gray: #f3f4f6;
+
+  --text-primary:  #111827;
+  --text-secondary:#6b7280;
+  --text-muted:    #9ca3af;
+  --text-nav:      #94a3b8;
+  --text-nav-active:#ffffff;
+  --text-badge-blue: #1d4ed8;
+  --text-badge-green:#15803d;
+  --text-badge-yellow:#854d0e;
+  --text-badge-red:  #b91c1c;
+  --text-badge-gray: #6b7280;
+
+  --border:        #e5e7eb;
+  --border-input:  #d1d5db;
+  --border-focus:  #2563eb;
+
+  --accent:        #2563eb;
+  --accent-hover:  #1d4ed8;
+  --accent-danger: #dc2626;
+  --accent-success:#16a34a;
+  --accent-warning:#f59e0b;
+
+  --shadow-sm:     0 1px 3px rgba(0,0,0,0.07);
+  --shadow-md:     0 4px 16px rgba(0,0,0,0.08);
+
+  --radius-sm:     6px;
+  --radius-md:     10px;
+  --radius-lg:     14px;
+
+  --nav-height:    60px;
+}
+
+/* ── Dark Theme ── */
+[data-theme="dark"] {
+  --bg-app:        #1c1e24;
+  --bg-card:       #25282f;
+  --bg-nav:        #1a1d23;
+  --bg-input:      #2a2d36;
+  --bg-hover:      #2a2d36;
+  --bg-table-head: #222530;
+  --bg-badge-blue: #1e3a5f;
+  --bg-badge-green:#14532d;
+  --bg-badge-yellow:#422006;
+  --bg-badge-red:  #450a0a;
+  --bg-badge-gray: #2d3140;
+
+  --text-primary:  #e8eaf0;
+  --text-secondary:#9ca3af;
+  --text-muted:    #6b7280;
+  --text-nav:      #94a3b8;
+  --text-nav-active:#ffffff;
+  --text-badge-blue: #93c5fd;
+  --text-badge-green:#86efac;
+  --text-badge-yellow:#fde047;
+  --text-badge-red:  #fca5a5;
+  --text-badge-gray: #9ca3af;
+
+  --border:        #2e3240;
+  --border-input:  #383c4a;
+  --border-focus:  #3b82f6;
+
+  --accent:        #3b82f6;
+  --accent-hover:  #2563eb;
+  --accent-danger: #ef4444;
+  --accent-success:#22c55e;
+  --accent-warning:#f59e0b;
+
+  --shadow-sm:     0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md:     0 4px 16px rgba(0,0,0,0.35);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -5,7 +89,12 @@
 }
 
 body {
-  font-family: sans-serif;
-  background-color: #f3f4f6;
-  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+input, select, textarea, button {
+  font-family: inherit;
 }

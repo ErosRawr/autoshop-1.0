@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import api from '../api'
 
 export default function LoginPage() {
   const { login } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const [form, setForm]       = useState({ username: '', password: '' })
   const [error, setError]     = useState(null)
   const [loading, setLoading] = useState(false)
@@ -28,7 +30,30 @@ export default function LoginPage() {
   }
 
   return (
+    
     <div style={styles.wrapper}>
+      <button
+        onClick={toggleTheme}
+        style={{
+          position:        'fixed',
+          top:             '1rem',
+          right:           '1rem',
+          background:      'var(--bg-card)',
+          border:          '1px solid var(--border)',
+          borderRadius:    'var(--radius-sm)',
+          width:           '36px',
+          height:          '36px',
+          cursor:          'pointer',
+          fontSize:        '1rem',
+          display:         'flex',
+          alignItems:      'center',
+          justifyContent:  'center',
+          boxShadow:       'var(--shadow-sm)',
+        }}
+      >
+        {theme === 'light' ? '🌙' : '☀️'}
+      </button>
+
       <div style={styles.card}>
         <h1 style={styles.title}>🔧 AutoShop</h1>
         <p style={styles.subtitle}>Sign in to your account</p>
@@ -72,67 +97,72 @@ export default function LoginPage() {
 
 const styles = {
   wrapper: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f3f4f6',
+    minHeight:       '100vh',
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'center',
+    backgroundColor: 'var(--bg-app)',
   },
   card: {
-    backgroundColor: '#ffffff',
-    padding: '2.5rem',
-    borderRadius: '12px',
-    boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-    width: '100%',
-    maxWidth: '400px',
+    backgroundColor: 'var(--bg-card)',
+    padding:         '2.5rem',
+    borderRadius:    'var(--radius-lg)',
+    boxShadow:       'var(--shadow-md)',
+    width:           '100%',
+    maxWidth:        '400px',
+    border:          '1px solid var(--border)',
   },
   title: {
-    fontSize: '1.8rem',
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: '0.25rem',
+    fontSize:      '1.8rem',
+    fontWeight:    '700',
+    textAlign:     'center',
+    marginBottom:  '0.25rem',
+    color:         'var(--text-primary)',
   },
   subtitle: {
-    textAlign: 'center',
-    color: '#6b7280',
-    marginBottom: '2rem',
+    textAlign:     'center',
+    color:         'var(--text-secondary)',
+    marginBottom:  '2rem',
+    fontSize:      '0.9rem',
   },
   form: {
-    display: 'flex',
+    display:       'flex',
     flexDirection: 'column',
-    gap: '1.25rem',
+    gap:           '1.25rem',
   },
   field: {
-    display: 'flex',
+    display:       'flex',
     flexDirection: 'column',
-    gap: '0.4rem',
+    gap:           '0.4rem',
   },
   label: {
-    fontSize: '0.875rem',
+    fontSize:   '0.875rem',
     fontWeight: '600',
-    color: '#374151',
+    color:      'var(--text-primary)',
   },
   input: {
-    padding: '0.65rem 0.875rem',
-    borderRadius: '8px',
-    border: '1px solid #d1d5db',
-    fontSize: '1rem',
-    outline: 'none',
+    padding:         '0.65rem 0.875rem',
+    borderRadius:    'var(--radius-sm)',
+    border:          '1px solid var(--border-input)',
+    fontSize:        '1rem',
+    backgroundColor: 'var(--bg-input)',
+    color:           'var(--text-primary)',
+    outline:         'none',
   },
   error: {
-    color: '#ef4444',
-    fontSize: '0.875rem',
+    color:     'var(--accent-danger)',
+    fontSize:  '0.875rem',
     textAlign: 'center',
   },
   button: {
-    padding: '0.75rem',
-    backgroundColor: '#2563eb',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '1rem',
-    fontWeight: '600',
-    cursor: 'pointer',
-    marginTop: '0.5rem',
+    padding:         '0.75rem',
+    backgroundColor: 'var(--accent)',
+    color:           '#ffffff',
+    border:          'none',
+    borderRadius:    'var(--radius-sm)',
+    fontSize:        '1rem',
+    fontWeight:      '600',
+    cursor:          'pointer',
+    marginTop:       '0.5rem',
   },
 }

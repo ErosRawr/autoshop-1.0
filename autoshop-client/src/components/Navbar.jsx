@@ -1,41 +1,67 @@
 import { Link, useLocation } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth }  from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 
 const links = [
-  { to: '/',           label: '📊 Dashboard' },
-  { to: '/customers',  label: '👥 Customers' },
-  { to: '/vehicles',   label: '🚗 Vehicles'  },
-  { to: '/workorders', label: '🔧 Work Orders' },
-  { to: '/inventory',  label: '📦 Inventory' },
-  { to: '/invoices',   label: '🧾 Invoices'  },
+  { to: '/',           label: 'Dashboard'   },
+  { to: '/customers',  label: 'Customers'   },
+  { to: '/vehicles',   label: 'Vehicles'    },
+  { to: '/workorders', label: 'Work Orders' },
+  { to: '/inventory',  label: 'Inventory'   },
+  { to: '/invoices',   label: 'Invoices'    },
 ]
 
 export default function Navbar() {
-  const { user, logout } = useAuth()
-  const location = useLocation()
+  const { user, logout }    = useAuth()
+  const { theme, toggleTheme } = useTheme()
+  const location            = useLocation()
 
   return (
     <nav style={styles.nav}>
-      <span style={styles.brand}>🔧 AutoShop</span>
-
-      <div style={styles.links}>
-        {links.map(link => (
-          <Link
-            key={link.to}
-            to={link.to}
-            style={{
-              ...styles.link,
-              ...(location.pathname === link.to ? styles.activeLink : {})
-            }}
-          >
-            {link.label}
-          </Link>
-        ))}
+      {/* Brand */}
+      <div style={styles.brand}>
+        <span style={styles.brandIcon}>⚙</span>
+        <span style={styles.brandText}>AutoShop</span>
       </div>
 
-      <div style={styles.user}>
-        <span style={styles.username}>👤 {user?.name}</span>
-        <button style={styles.logout} onClick={logout}>Logout</button>
+      {/* Links */}
+      <div style={styles.links}>
+        {links.map(link => {
+          const active = location.pathname === link.to
+          return (
+            <Link
+              key={link.to}
+              to={link.to}
+              style={{ ...styles.link, ...(active ? styles.linkActive : {}) }}
+            >
+              {link.label}
+              {active && <span style={styles.activeDot} />}
+            </Link>
+          )
+        })}
+      </div>
+
+      {/* Right side */}
+      <div style={styles.right}>
+        {/* Theme toggle */}
+        <button style={styles.iconBtn} onClick={toggleTheme} title="Toggle theme">
+          {theme === 'light' ? '🌙' : '☀️'}
+        </button>
+
+        {/* User info */}
+        <div style={styles.userInfo}>
+          <div style={styles.avatar}>
+            {user?.name?.charAt(0).toUpperCase()}
+          </div>
+          <div style={styles.userText}>
+            <span style={styles.userName}>{user?.name}</span>
+            <span style={styles.userRole}>{user?.role}</span>
+          </div>
+        </div>
+
+        <button style={styles.logoutBtn} onClick={logout}>
+          Sign out
+        </button>
       </div>
     </nav>
   )
@@ -43,56 +69,123 @@ export default function Navbar() {
 
 const styles = {
   nav: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#1e3a5f',
-    padding: '0 2rem',
-    height: '60px',
-    position: 'sticky',
-    top: 0,
-    zIndex: 100,
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    backgroundColor: 'var(--bg-nav)',
+    padding:         '0 1.5rem',
+    height:          'var(--nav-height)',
+    position:        'sticky',
+    top:             0,
+    zIndex:          100,
+    borderBottom:    '1px solid rgba(255,255,255,0.06)',
+    boxShadow:       '0 1px 12px rgba(0,0,0,0.15)',
   },
   brand: {
-    color: '#ffffff',
+    display:    'flex',
+    alignItems: 'center',
+    gap:        '0.5rem',
+    minWidth:   '140px',
+  },
+  brandIcon: {
+    fontSize:   '1.3rem',
+    color:      'var(--accent)',
+  },
+  brandText: {
+    color:      '#ffffff',
     fontWeight: '700',
-    fontSize: '1.2rem',
-    minWidth: '120px',
+    fontSize:   '1.1rem',
+    letterSpacing: '-0.01em',
   },
   links: {
-    display: 'flex',
-    gap: '0.25rem',
+    display:    'flex',
+    alignItems: 'center',
+    gap:        '0.125rem',
   },
   link: {
-    color: '#93c5fd',
+    position:       'relative',
+    color:          'var(--text-nav)',
     textDecoration: 'none',
-    padding: '0.4rem 0.75rem',
-    borderRadius: '6px',
-    fontSize: '0.875rem',
-    transition: 'background 0.2s',
+    padding:        '0.4rem 0.75rem',
+    borderRadius:   'var(--radius-sm)',
+    fontSize:       '0.875rem',
+    fontWeight:     '500',
+    display:        'flex',
+    flexDirection:  'column',
+    alignItems:     'center',
+    gap:            '2px',
+    transition:     'color 0.15s',
   },
-  activeLink: {
-    backgroundColor: '#2563eb',
-    color: '#ffffff',
+  linkActive: {
+    color: 'var(--text-nav-active)',
   },
-  user: {
-    display: 'flex',
+  activeDot: {
+    width:           '4px',
+    height:          '4px',
+    borderRadius:    '50%',
+    backgroundColor: 'var(--accent)',
+  },
+  right: {
+    display:    'flex',
     alignItems: 'center',
-    gap: '1rem',
-    minWidth: '120px',
+    gap:        '0.75rem',
+    minWidth:   '200px',
     justifyContent: 'flex-end',
   },
-  username: {
-    color: '#93c5fd',
-    fontSize: '0.875rem',
+  iconBtn: {
+    background:   'rgba(255,255,255,0.08)',
+    border:       'none',
+    borderRadius: 'var(--radius-sm)',
+    width:        '34px',
+    height:       '34px',
+    cursor:       'pointer',
+    fontSize:     '1rem',
+    display:      'flex',
+    alignItems:   'center',
+    justifyContent: 'center',
   },
-  logout: {
+  userInfo: {
+    display:    'flex',
+    alignItems: 'center',
+    gap:        '0.5rem',
+  },
+  avatar: {
+    width:           '32px',
+    height:          '32px',
+    borderRadius:    '50%',
+    backgroundColor: 'var(--accent)',
+    color:           '#fff',
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'center',
+    fontWeight:      '700',
+    fontSize:        '0.85rem',
+    flexShrink:      0,
+  },
+  userText: {
+    display:       'flex',
+    flexDirection: 'column',
+  },
+  userName: {
+    color:      '#fff',
+    fontSize:   '0.8rem',
+    fontWeight: '600',
+    lineHeight: 1.2,
+  },
+  userRole: {
+    color:      'var(--text-nav)',
+    fontSize:   '0.7rem',
+    textTransform: 'capitalize',
+  },
+  logoutBtn: {
     backgroundColor: 'transparent',
-    border: '1px solid #93c5fd',
-    color: '#93c5fd',
-    padding: '0.3rem 0.75rem',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '0.8rem',
+    border:          '1px solid rgba(255,255,255,0.15)',
+    color:           'var(--text-nav)',
+    padding:         '0.3rem 0.75rem',
+    borderRadius:    'var(--radius-sm)',
+    cursor:          'pointer',
+    fontSize:        '0.78rem',
+    fontWeight:      '500',
+    transition:      'border-color 0.15s',
   },
 }
