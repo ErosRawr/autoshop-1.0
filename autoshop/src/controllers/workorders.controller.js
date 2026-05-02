@@ -45,7 +45,7 @@ async function getAll(req, res) {
   }
 }
 
-// GET /workorders/:id  (full detail with services and parts)
+// GET /workorders/:id  (full detail with services, parts and mechanics)
 async function getOne(req, res) {
   const { id } = req.params
   try {
@@ -73,8 +73,8 @@ async function getOne(req, res) {
               u.name AS mechanic_name
        FROM workorder_services wos
        JOIN services  s ON s.service_id  = wos.service_id
-       JOIN mechanics m ON m.mechanic_id = wos.mechanic_id
-       JOIN users     u ON u.user_id     = m.user_id
+       LEFT JOIN mechanics m ON m.mechanic_id = wos.mechanic_id
+       LEFT JOIN users     u ON u.user_id     = m.user_id
        WHERE wos.work_order_id = $1`,
       [id]
     )
@@ -87,10 +87,20 @@ async function getOne(req, res) {
       [id]
     )
 
+    const mechanicsResult = await pool.query(
+      `SELECT wom.hours_worked, u.name AS mechanic_name, m.mechanic_id, m.specialty
+       FROM workorder_mechanics wom
+       JOIN mechanics m ON m.mechanic_id = wom.mechanic_id
+       JOIN users     u ON u.user_id     = m.user_id
+       WHERE wom.work_order_id = $1`,
+      [id]
+    )
+
     res.json({
       ...woResult.rows[0],
-      services: servicesResult.rows,
-      parts:    partsResult.rows,
+      services:  servicesResult.rows,
+      parts:     partsResult.rows,
+      mechanics: mechanicsResult.rows,
     })
   } catch (err) {
     console.error(err)

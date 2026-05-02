@@ -1,14 +1,20 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
 import Layout from '../components/Layout'
+import SearchBar  from '../components/SearchBar'
+import TableMeta  from '../components/TableMeta'
+import SortableTh from '../components/SortableTh'
 import { shared } from '../styles/shared'
+import { useSort } from '../hooks/useSort'
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([])
   const [loading, setLoading]     = useState(true)
   const [showForm, setShowForm]   = useState(false)
   const [saving, setSaving]       = useState(false)
+  const [search, setSearch]       = useState('')
   const [form, setForm]           = useState({ name: '', phone: '', email: '', rfc: '' })
+  const { toggle, sort, indicator } = useSort('name')
 
   useEffect(() => { fetchCustomers() }, [])
 
@@ -16,16 +22,11 @@ export default function CustomersPage() {
     try {
       const res = await api.get('/customers')
       setCustomers(res.data)
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
+    } catch (err) { console.error(err) }
+    finally { setLoading(false) }
   }
 
-  function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value })
-  }
+  function handleChange(e) { setForm({ ...form, [e.target.name]: e.target.value }) }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -37,9 +38,7 @@ export default function CustomersPage() {
       fetchCustomers()
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to create customer')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   async function handleDeactivate(id) {
@@ -47,10 +46,17 @@ export default function CustomersPage() {
     try {
       await api.delete(`/customers/${id}`)
       fetchCustomers()
-    } catch (err) {
-      alert('Failed to deactivate')
-    }
+    } catch (err) { alert('Failed to deactivate') }
   }
+
+  const filtered = sort(
+    customers.filter(c =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.phone.includes(search) ||
+      (c.email || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c.rfc  || '').toLowerCase().includes(search.toLowerCase())
+    )
+  )
 
   if (loading) return <Layout><p style={shared.empty}>Loading...</p></Layout>
 
@@ -58,15 +64,10 @@ export default function CustomersPage() {
     <Layout>
       <div style={shared.pageHeader}>
         <h2 style={shared.pageTitle}>Customers</h2>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          {showForm && (
-            <button style={shared.btnGhost} onClick={() => setShowForm(false)}>
-              Cancel
-            </button>
-          )}
-          <button style={shared.btnPrimary} onClick={() => setShowForm(!showForm)}>
-            + New Customer
-          </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <SearchBar value={search} onChange={setSearch} placeholder="Search customers..." />
+          {showForm && <button style={shared.btnGhost} onClick={() => setShowForm(false)}>Cancel</button>}
+          <button style={shared.btnPrimary} onClick={() => setShowForm(!showForm)}>+ New Customer</button>
         </div>
       </div>
 
@@ -99,23 +100,29 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {customers.length === 0 ? (
-        <p style={shared.empty}>No customers yet.</p>
+      <TableMeta total={customers.length} showing={filtered.length} label="customers" />
+
+      {filtered.length === 0 ? (
+        <div style={styles.emptyState}>
+          <p style={styles.emptyIcon}>👥</p>
+          <p style={styles.emptyText}>{search ? `No customers match "${search}"` : 'No customers yet'}</p>
+          {search && <button style={shared.btnGhost} onClick={() => setSearch('')}>Clear search</button>}
+        </div>
       ) : (
         <div style={shared.tableWrapper}>
           <table style={shared.table}>
             <thead style={shared.thead}>
               <tr>
-                <th style={shared.th}>Name</th>
-                <th style={shared.th}>Phone</th>
-                <th style={shared.th}>Email</th>
+                <SortableTh label="Name"   sortKey="name"  currentKey="name"  onSort={toggle} indicator={indicator} />
+                <SortableTh label="Phone"  sortKey="phone" currentKey="phone" onSort={toggle} indicator={indicator} />
+                <SortableTh label="Email"  sortKey="email" currentKey="email" onSort={toggle} indicator={indicator} />
                 <th style={shared.th}>RFC</th>
-                <th style={shared.th}>Status</th>
+                <SortableTh label="Status" sortKey="is_active" currentKey="is_active" onSort={toggle} indicator={indicator} />
                 <th style={shared.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {customers.map(c => (
+              {filtered.map(c => (
                 <tr key={c.customer_id} style={shared.tr}>
                   <td style={{ ...shared.td, fontWeight: '600' }}>{c.name}</td>
                   <td style={shared.td}>{c.phone}</td>
@@ -144,5 +151,8 @@ export default function CustomersPage() {
 }
 
 const styles = {
-  formTitle: { fontWeight: '700', marginBottom: '1rem', color: 'var(--text-primary)' },
+  formTitle:  { fontWeight: '700', marginBottom: '1rem', color: 'var(--text-primary)' },
+  emptyState: { textAlign: 'center', padding: '4rem 2rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' },
+  emptyIcon:  { fontSize: '2.5rem', marginBottom: '0.75rem' },
+  emptyText:  { color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.95rem' },
 }
