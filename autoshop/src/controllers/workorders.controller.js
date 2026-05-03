@@ -219,4 +219,84 @@ async function addPart(req, res) {
   }
 }
 
-module.exports = { getAll, getOne, create, updateStatus, addService, addPart }
+  // DELETE /workorders/:id/services/:serviceId
+async function removeService(req, res) {
+  const { id, serviceId } = req.params
+  try {
+    const result = await pool.query(
+      `DELETE FROM workorder_services
+       WHERE id = $1 AND work_order_id = $2
+       RETURNING id`,
+      [serviceId, id]
+    )
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Service line not found' })
+    }
+    res.json({ message: 'Service removed' })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Server error' })
+  }
+}
+
+// DELETE /workorders/:id/parts/:partLineId
+async function removePart(req, res) {
+  const { id, partLineId } = req.params
+  try {
+    // First get the quantity so we can restore stock
+    const line = await pool.query(
+      `SELECT part_id, quantity FROM workorder_parts
+       WHERE id = $1 AND work_order_id = $2`,
+      [partLineId, id]
+    )
+    if (line.rows.length === 0) {
+      return res.status(404).json({ message: 'Part line not found' })
+    }
+
+    // Get the work order's location
+    const wo = await pool.query(
+      `SELECT location_id, created_by FROM work_orders WHERE work_order_id = $1`,
+      [id]
+    )
+
+    // Delete the part line — trigger will handle restoring stock
+    await pool.query(
+      `DELETE FROM workorder_parts WHERE id = $1`,
+      [partLineId]
+    )
+
+    // Manually restore stock since the trigger only fires on INSERT
+    await pool.query(
+      `INSERT INTO inventory_movements (location_id, part_id, user_id, work_order_id, quantity, reason)
+       VALUES ($1, $2, $3, $4, $5, 'adjustment')`,
+      [wo.rows[0].location_id, line.rows[0].part_id, req.user.user_id, id, line.rows[0].quantity]
+    )
+
+    res.json({ message: 'Part removed and stock restored' })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Server error' })
+  }
+}
+
+// DELETE /workorders/:id/mechanics/:mechanicId
+async function removeMechanic(req, res) {
+  const { id, mechanicId } = req.params
+  try {
+    const result = await pool.query(
+      `DELETE FROM workorder_mechanics
+       WHERE work_order_id = $1 AND mechanic_id = $2
+       RETURNING id`,
+      [id, mechanicId]
+    )
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Mechanic assignment not found' })
+    }
+    res.json({ message: 'Mechanic removed' })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Server error' })
+  }
+}
+
+module.exports = { getAll, getOne, create, updateStatus, addService, addPart, removeService, removePart, removeMechanic }

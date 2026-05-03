@@ -32,19 +32,16 @@ export default function WorkOrdersPage() {
   const [loading, setLoading]       = useState(true)
   const [showForm, setShowForm]     = useState(false)
   const [saving, setSaving]         = useState(false)
-  const [selected, setSelected]     = useState(null)   // WO detail
-  const [detail, setDetail]         = useState(null)   // full WO detail from API
+  const [selected, setSelected]     = useState(null)
+  const [detail, setDetail]         = useState(null)
   const [filterStatus, setFilterStatus] = useState('')
   const [search, setSearch]         = useState('')
   const [form, setForm] = useState({
     location_id: '1', customer_id: '', vehicle_id: '',
     priority: 'normal', mileage: '', problem_description: ''
   })
-
-  // Sub-forms for the detail panel
   const [serviceForm, setServiceForm] = useState({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
   const [partForm, setPartForm]       = useState({ part_id: '', quantity: '1', price_at_time: '', cost_price_at_time: '' })
-  const [mechForm, setMechForm]       = useState({ mechanic_id: '', hours_worked: '' })
 
   const { toggle, sort, indicator } = useSort('created_at', 'desc')
 
@@ -116,40 +113,82 @@ export default function WorkOrdersPage() {
   async function handleAddService(e) {
     e.preventDefault()
     try {
-      await api.post(`/workorders/${detail.work_order_id}/services`, serviceForm)
+      await api.post(`/workorders/${detail.work_order_id}/services`, {
+        service_id:    parseInt(serviceForm.service_id),
+        mechanic_id:   parseInt(serviceForm.mechanic_id),
+        hours:         parseFloat(serviceForm.hours),
+        price_at_time: parseFloat(serviceForm.price_at_time),
+      })
       setServiceForm({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
       refreshDetail(detail.work_order_id)
-    } catch (err) { alert(err.response?.data?.message || 'Failed to add service') }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to add service')
+    }
   }
 
   async function handleAddPart(e) {
     e.preventDefault()
     try {
-      await api.post(`/workorders/${detail.work_order_id}/parts`, partForm)
+      await api.post(`/workorders/${detail.work_order_id}/parts`, {
+        part_id:            parseInt(partForm.part_id),
+        quantity:           parseInt(partForm.quantity),
+        price_at_time:      parseFloat(partForm.price_at_time),
+        cost_price_at_time: parseFloat(partForm.cost_price_at_time),
+      })
       setPartForm({ part_id: '', quantity: '1', price_at_time: '', cost_price_at_time: '' })
       refreshDetail(detail.work_order_id)
-    } catch (err) { alert(err.response?.data?.message || 'Failed to add part') }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to add part')
+    }
   }
 
-  async function handleAddMechanic(e) {
-    e.preventDefault()
+  async function handleRemoveService(serviceId) {
+    if (!confirm('Remove this service?')) return
     try {
-      await api.post(`/workorders/${detail.work_order_id}/mechanics`, mechForm)
-      setMechForm({ mechanic_id: '', hours_worked: '' })
+      await api.delete(`/workorders/${detail.work_order_id}/services/${serviceId}`)
       refreshDetail(detail.work_order_id)
-    } catch (err) { alert(err.response?.data?.message || 'Failed to assign mechanic') }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to remove service')
+    }
   }
 
-  // Auto-fill price when service is selected
+  async function handleRemovePart(partLineId) {
+    if (!confirm('Remove this part? Stock will be restored.')) return
+    try {
+      await api.delete(`/workorders/${detail.work_order_id}/parts/${partLineId}`)
+      refreshDetail(detail.work_order_id)
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to remove part')
+    }
+  }
+
+  // String comparison — pg returns ids as strings
   function handleServiceSelect(e) {
-    const svc = services.find(s => s.service_id === parseInt(e.target.value))
-    setServiceForm({ ...serviceForm, service_id: e.target.value, price_at_time: svc ? svc.base_price : '' })
+    const svc = services.find(s => String(s.service_id) === e.target.value)
+    setServiceForm({ ...serviceForm, service_id: e.target.value, price_at_time: svc ? String(svc.base_price) : '' })
   }
 
-  // Auto-fill prices when part is selected
   function handlePartSelect(e) {
-    const part = parts.find(p => p.part_id === parseInt(e.target.value))
-    setPartForm({ ...partForm, part_id: e.target.value, price_at_time: part ? part.sale_price : '', cost_price_at_time: part ? part.cost_price : '' })
+    const part = parts.find(p => String(p.part_id) === e.target.value)
+    setPartForm({
+      ...partForm,
+      part_id:            e.target.value,
+      price_at_time:      part ? String(part.sale_price)  : '',
+      cost_price_at_time: part ? String(part.cost_price)  : '',
+    })
+  }
+
+  // Compute mechanics summary from services — no manual entry needed
+  function getMechanicsSummary(services = []) {
+    return Object.values(
+      services.reduce((acc, s) => {
+        const key = s.mechanic_name || 'Unassigned'
+        if (!acc[key]) acc[key] = { name: key, hours: 0, services: 0 }
+        acc[key].hours    += parseFloat(s.hours || 0)
+        acc[key].services += 1
+        return acc
+      }, {})
+    )
   }
 
   const filtered = sort(
@@ -238,13 +277,12 @@ export default function WorkOrdersPage() {
         </div>
       )}
 
-      {/* Split view when a WO is selected */}
+      {/* Split view */}
       <div style={selected ? styles.splitView : {}}>
 
         {/* Table */}
         <div>
           <TableMeta total={workOrders.length} showing={filtered.length} label="work orders" />
-
           {filtered.length === 0 ? (
             <div style={styles.emptyState}>
               <p style={styles.emptyIcon}>🔧</p>
@@ -313,7 +351,6 @@ export default function WorkOrdersPage() {
         {/* Detail Panel */}
         {selected && (
           <div style={styles.detailPanel}>
-            {/* Header */}
             <div style={styles.detailHeader}>
               <div>
                 <h3 style={styles.detailTitle}>Work Order #{selected.work_order_id}</h3>
@@ -334,8 +371,12 @@ export default function WorkOrdersPage() {
                   <InfoBlock label="Priority">
                     <span style={PRIORITY_BADGE[detail.priority]}>{detail.priority}</span>
                   </InfoBlock>
-                  <InfoBlock label="Mileage">{detail.mileage ? `${detail.mileage.toLocaleString()} km` : '—'}</InfoBlock>
-                  <InfoBlock label="Opened">{new Date(detail.created_at).toLocaleDateString()}</InfoBlock>
+                  <InfoBlock label="Mileage">
+                    {detail.mileage ? `${Number(detail.mileage).toLocaleString()} km` : '—'}
+                  </InfoBlock>
+                  <InfoBlock label="Opened">
+                    {new Date(detail.created_at).toLocaleDateString()}
+                  </InfoBlock>
                 </div>
 
                 {detail.problem_description && (
@@ -345,43 +386,19 @@ export default function WorkOrdersPage() {
                   </div>
                 )}
 
-                {/* ── Mechanics ── */}
-                <Section title="👨‍🔧 Assigned Mechanics">
-                  {detail.mechanics?.length === 0 && (
-                    <p style={styles.subEmpty}>No mechanics assigned yet</p>
-                  )}
-                  {detail.mechanics?.map((m, i) => (
-                    <div key={i} style={styles.lineItem}>
-                      <span style={{ fontWeight: '600' }}>{m.mechanic_name}</span>
-                      <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                        {m.hours_worked ? `${m.hours_worked}h worked` : 'Hours TBD'}
-                      </span>
-                    </div>
-                  ))}
-                  {!['completed','cancelled'].includes(detail.status) && (
-                    <form onSubmit={handleAddMechanic} style={styles.subForm}>
-                      <select
-                        style={{ ...shared.input, flex: 1 }}
-                        value={mechForm.mechanic_id}
-                        onChange={e => setMechForm({ ...mechForm, mechanic_id: e.target.value })}
-                        required
-                      >
-                        <option value="">Assign mechanic</option>
-                        {mechanics.map(m => (
-                          <option key={m.mechanic_id} value={m.mechanic_id}>{m.name}</option>
-                        ))}
-                      </select>
-                      <input
-                        style={{ ...shared.input, width: '80px' }}
-                        type="number"
-                        placeholder="Hours"
-                        min="0"
-                        step="0.5"
-                        value={mechForm.hours_worked}
-                        onChange={e => setMechForm({ ...mechForm, hours_worked: e.target.value })}
-                      />
-                      <button style={shared.btnPrimary} type="submit">Assign</button>
-                    </form>
+                {/* ── Mechanics Summary (computed from services) ── */}
+                <Section title="👨‍🔧 Mechanics">
+                  {detail.services?.length === 0 ? (
+                    <p style={styles.subEmpty}>Add services to see mechanic assignments</p>
+                  ) : (
+                    getMechanicsSummary(detail.services).map((m, i) => (
+                      <div key={i} style={styles.lineItem}>
+                        <span style={{ fontWeight: '600' }}>{m.name}</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                          {m.services} service{m.services > 1 ? 's' : ''} · {m.hours.toFixed(1)}h
+                        </span>
+                      </div>
+                    ))
                   )}
                 </Section>
 
@@ -398,10 +415,15 @@ export default function WorkOrdersPage() {
                           {s.mechanic_name} · {s.hours}h
                         </p>
                       </div>
-                      <span style={{ fontWeight: '700' }}>${parseFloat(s.price_at_time).toFixed(2)}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <span style={{ fontWeight: '700' }}>${parseFloat(s.price_at_time).toFixed(2)}</span>
+                        {!['completed', 'cancelled'].includes(detail.status) && (
+                          <button style={styles.removeBtn} onClick={() => handleRemoveService(s.id)}>✕</button>
+                        )}
+                      </div>
                     </div>
                   ))}
-                  {!['completed','cancelled'].includes(detail.status) && (
+                  {!['completed', 'cancelled'].includes(detail.status) && (
                     <form onSubmit={handleAddService} style={{ ...styles.subForm, flexWrap: 'wrap' }}>
                       <select
                         style={{ ...shared.input, flex: 2, minWidth: '140px' }}
@@ -436,7 +458,7 @@ export default function WorkOrdersPage() {
                       />
                       <input
                         style={{ ...shared.input, width: '90px' }}
-                        type="number" placeholder="Price"
+                        type="number" placeholder="Price $"
                         value={serviceForm.price_at_time}
                         onChange={e => setServiceForm({ ...serviceForm, price_at_time: e.target.value })}
                         required
@@ -459,12 +481,17 @@ export default function WorkOrdersPage() {
                           {p.part_number} · qty {p.quantity}
                         </p>
                       </div>
-                      <span style={{ fontWeight: '700' }}>
-                        ${(parseFloat(p.price_at_time) * p.quantity).toFixed(2)}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <span style={{ fontWeight: '700' }}>
+                          ${(parseFloat(p.price_at_time) * p.quantity).toFixed(2)}
+                        </span>
+                        {!['completed', 'cancelled'].includes(detail.status) && (
+                          <button style={styles.removeBtn} onClick={() => handleRemovePart(p.id)}>✕</button>
+                        )}
+                      </div>
                     </div>
                   ))}
-                  {!['completed','cancelled'].includes(detail.status) && (
+                  {!['completed', 'cancelled'].includes(detail.status) && (
                     <form onSubmit={handleAddPart} style={{ ...styles.subForm, flexWrap: 'wrap' }}>
                       <select
                         style={{ ...shared.input, flex: 2, minWidth: '140px' }}
@@ -480,17 +507,24 @@ export default function WorkOrdersPage() {
                         ))}
                       </select>
                       <input
-                        style={{ ...shared.input, width: '70px' }}
+                        style={{ ...shared.input, width: '60px' }}
                         type="number" placeholder="Qty" min="1"
                         value={partForm.quantity}
                         onChange={e => setPartForm({ ...partForm, quantity: e.target.value })}
                         required
                       />
                       <input
-                        style={{ ...shared.input, width: '90px' }}
+                        style={{ ...shared.input, width: '80px' }}
                         type="number" placeholder="Sale $"
                         value={partForm.price_at_time}
                         onChange={e => setPartForm({ ...partForm, price_at_time: e.target.value })}
+                        required
+                      />
+                      <input
+                        style={{ ...shared.input, width: '80px' }}
+                        type="number" placeholder="Cost $"
+                        value={partForm.cost_price_at_time}
+                        onChange={e => setPartForm({ ...partForm, cost_price_at_time: e.target.value })}
                         required
                       />
                       <button style={shared.btnSuccess} type="submit">Add</button>
@@ -529,7 +563,6 @@ export default function WorkOrdersPage() {
   )
 }
 
-// ── Small helper components ──────────────────────────────────
 function Section({ title, children }) {
   return (
     <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)' }}>
@@ -560,21 +593,22 @@ function TotalRow({ label, value }) {
 }
 
 const styles = {
-  splitView:    { display: 'grid', gridTemplateColumns: '1fr 420px', gap: '1.5rem', alignItems: 'start' },
-  detailPanel:  { backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', padding: '1.25rem', position: 'sticky', top: 'calc(var(--nav-height) + 1rem)' },
-  detailHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' },
-  detailTitle:  { fontWeight: '700', fontSize: '1.05rem', color: 'var(--text-primary)' },
-  detailSub:    { color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.2rem' },
-  infoGrid:     { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' },
-  descBlock:    { backgroundColor: 'var(--bg-table-head)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '0.5rem' },
-  descText:     { fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.5 },
-  lineItem:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' },
-  subForm:      { display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem' },
-  subEmpty:     { color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic', padding: '0.5rem 0' },
-  totals:       { marginTop: '1.25rem', paddingTop: '1rem', borderTop: '2px solid var(--border)' },
-  totalFinalRow:{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)', borderTop: '1px solid var(--border)', marginTop: '0.5rem', paddingTop: '0.5rem' },
-  sectionTitle: { fontWeight: '700', marginBottom: '1rem', color: 'var(--text-primary)' },
-  emptyState:   { textAlign: 'center', padding: '4rem 2rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' },
-  emptyIcon:    { fontSize: '2.5rem', marginBottom: '0.75rem' },
-  emptyText:    { color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.95rem' },
+  splitView:     { display: 'grid', gridTemplateColumns: '1fr 420px', gap: '1.5rem', alignItems: 'start' },
+  detailPanel:   { backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', padding: '1.25rem', position: 'sticky', top: 'calc(var(--nav-height) + 1rem)' },
+  detailHeader:  { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' },
+  detailTitle:   { fontWeight: '700', fontSize: '1.05rem', color: 'var(--text-primary)' },
+  detailSub:     { color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.2rem' },
+  infoGrid:      { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' },
+  descBlock:     { backgroundColor: 'var(--bg-table-head)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '0.5rem' },
+  descText:      { fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.5 },
+  lineItem:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' },
+  subForm:       { display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem' },
+  subEmpty:      { color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic', padding: '0.5rem 0' },
+  totals:        { marginTop: '1.25rem', paddingTop: '1rem', borderTop: '2px solid var(--border)' },
+  totalFinalRow: { display: 'flex', justifyContent: 'space-between', fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)', borderTop: '1px solid var(--border)', marginTop: '0.5rem', paddingTop: '0.5rem' },
+  sectionTitle:  { fontWeight: '700', marginBottom: '1rem', color: 'var(--text-primary)' },
+  emptyState:    { textAlign: 'center', padding: '4rem 2rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' },
+  emptyIcon:     { fontSize: '2.5rem', marginBottom: '0.75rem' },
+  emptyText:     { color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.95rem' },
+  removeBtn:     { background: 'none', border: 'none', color: 'var(--accent-danger)', cursor: 'pointer', fontSize: '0.85rem', padding: '0.1rem 0.25rem', borderRadius: 'var(--radius-sm)', flexShrink: 0 },
 }
