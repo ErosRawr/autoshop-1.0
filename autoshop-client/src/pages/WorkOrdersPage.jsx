@@ -6,6 +6,9 @@ import TableMeta  from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
+import { useLocation } from '../context/LocationContext'
+
+const { currentLocation } = useLocation()
 
 const STATUS_BADGE = {
   open:          { ...shared.badge, ...shared.badgeBlue   },
@@ -33,13 +36,19 @@ export default function WorkOrdersPage() {
   const [showForm, setShowForm]     = useState(false)
   const [saving, setSaving]         = useState(false)
   const [selected, setSelected]     = useState(null)
+  const [form, setForm] = useState({
+  location_id: '', customer_id: '', vehicle_id: '',
+  priority: 'normal', mileage: '', problem_description: ''
+  })
   const [detail, setDetail]         = useState(null)
   const [filterStatus, setFilterStatus] = useState('')
   const [search, setSearch]         = useState('')
   const [form, setForm] = useState({
-    location_id: '1', customer_id: '', vehicle_id: '',
-    priority: 'normal', mileage: '', problem_description: ''
+  location_id: '', customer_id: '', vehicle_id: '',
+  priority: 'normal', mileage: '', problem_description: ''
   })
+  const { toggle, sort, indicator } = useSort('created_at', 'desc')
+  const { currentLocation }         = useLocation()
   const [serviceForm, setServiceForm] = useState({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
   const [partForm, setPartForm]       = useState({ part_id: '', quantity: '1', price_at_time: '', cost_price_at_time: '' })
 
@@ -50,7 +59,7 @@ export default function WorkOrdersPage() {
   async function fetchAll() {
     try {
       const [woRes, cRes, vRes, mRes, sRes, pRes] = await Promise.all([
-        api.get('/workorders'),
+        api.get(`/workorders?location_id=${currentLocation.location_id}`),
         api.get('/customers'),
         api.get('/vehicles'),
         api.get('/mechanics'),
@@ -92,8 +101,7 @@ export default function WorkOrdersPage() {
     setSaving(true)
     try {
       await api.post('/workorders', form)
-      setForm({ location_id: '1', customer_id: '', vehicle_id: '', priority: 'normal', mileage: '', problem_description: '' })
-      setShowForm(false)
+      setForm({ location_id: String(currentLocation.location_id), customer_id: '', vehicle_id: '', priority: 'normal', mileage: '', problem_description: '' })
       fetchAll()
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to create work order')

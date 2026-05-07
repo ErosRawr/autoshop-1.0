@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth }   from './context/AuthContext'
-import { ThemeProvider }           from './context/ThemeContext'
+import { AuthProvider, useAuth }     from './context/AuthContext'
+import { ThemeProvider }             from './context/ThemeContext'
+import { LocationProvider }          from './context/LocationContext'
 import DashboardPage   from './pages/DashboardPage'
 import LoginPage       from './pages/LoginPage'
 import CustomersPage   from './pages/CustomersPage'
@@ -18,8 +19,10 @@ function AppRoutes() {
   const { token } = useAuth()
   return (
     <Routes>
-      <Route path="/login"      element={token ? <Navigate to="/" /> : <LoginPage />} />
-      <Route path="/"           element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+      <Route path="/login" element={token ? <Navigate to="/" /> : <LoginPage />} />
+      <Route path="/" element={
+        <ProtectedRoute><DashboardPage /></ProtectedRoute>
+      } />
       <Route path="/customers"  element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
       <Route path="/vehicles"   element={<ProtectedRoute><VehiclesPage /></ProtectedRoute>} />
       <Route path="/workorders" element={<ProtectedRoute><WorkOrdersPage /></ProtectedRoute>} />
@@ -29,11 +32,19 @@ function AppRoutes() {
   )
 }
 
+function AuthenticatedApp() {
+  return (
+    <LocationProvider>
+      <AppRoutes />
+    </LocationProvider>
+  )
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <AppRoutes />
+        <AuthenticatedApp />
       </AuthProvider>
     </ThemeProvider>
   )

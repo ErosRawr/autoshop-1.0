@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import api from '../api'
 import Layout from '../components/Layout'
 import { shared } from '../styles/shared'
-
-const LOCATION_ID = 1
+import { useLocation } from '../context/LocationContext'
 
 export default function InventoryPage() {
   const [stock, setStock]       = useState([])
@@ -12,13 +11,16 @@ export default function InventoryPage() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving]     = useState(false)
   const [form, setForm]         = useState({ part_id: '', quantity: '', notes: '' })
+  const { currentLocation }     = useLocation()
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => {
+    if (currentLocation) fetchAll()
+  }, [currentLocation])
 
   async function fetchAll() {
     try {
       const [sRes, pRes] = await Promise.all([
-        api.get(`/inventory?location_id=${LOCATION_ID}`),
+        api.get(`/inventory?location_id=${currentLocation.location_id}`),
         api.get('/parts'),
       ])
       setStock(sRes.data)
@@ -32,7 +34,7 @@ export default function InventoryPage() {
     setSaving(true)
     try {
       await api.post('/inventory/receive', {
-        location_id: LOCATION_ID,
+        location_id: currentLocation.location_id,
         part_id:     parseInt(form.part_id),
         quantity:    parseInt(form.quantity),
         notes:       form.notes || undefined,
@@ -52,7 +54,12 @@ export default function InventoryPage() {
   return (
     <Layout>
       <div style={shared.pageHeader}>
-        <h2 style={shared.pageTitle}>Inventory</h2>
+        <h2 style={shared.pageTitle}>
+          Inventory
+          {currentLocation && (
+            <span style={styles.locationBadge}>{currentLocation.name}</span>
+          )}
+        </h2>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           {showForm && <button style={shared.btnGhost} onClick={() => setShowForm(false)}>Cancel</button>}
           <button style={shared.btnPrimary} onClick={() => setShowForm(!showForm)}>+ Receive Stock</button>
@@ -68,7 +75,7 @@ export default function InventoryPage() {
 
       {showForm && (
         <div style={{ ...shared.card, marginBottom: '1.5rem' }}>
-          <h3 style={styles.formTitle}>Receive Stock</h3>
+          <h3 style={styles.formTitle}>Receive Stock — {currentLocation?.name}</h3>
           <form onSubmit={handleReceive} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={shared.formGrid}>
               <div style={shared.field}>
@@ -99,7 +106,10 @@ export default function InventoryPage() {
       )}
 
       {stock.length === 0 ? (
-        <p style={shared.empty}>No inventory yet.</p>
+        <div style={styles.emptyState}>
+          <p style={styles.emptyIcon}>📦</p>
+          <p style={styles.emptyText}>No inventory at {currentLocation?.name} yet</p>
+        </div>
       ) : (
         <div style={shared.tableWrapper}>
           <table style={shared.table}>
@@ -139,6 +149,10 @@ export default function InventoryPage() {
 }
 
 const styles = {
-  formTitle: { fontWeight: '700', marginBottom: '1rem', color: 'var(--text-primary)' },
-  alert:     { backgroundColor: 'var(--bg-badge-yellow)', border: '1px solid var(--accent-warning)', color: 'var(--text-badge-yellow)', padding: '0.875rem 1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.25rem', fontSize: '0.9rem' },
+  formTitle:    { fontWeight: '700', marginBottom: '1rem', color: 'var(--text-primary)' },
+  locationBadge:{ fontSize: '0.75rem', fontWeight: '600', backgroundColor: 'var(--bg-badge-blue)', color: 'var(--text-badge-blue)', padding: '0.2rem 0.6rem', borderRadius: '999px', marginLeft: '0.75rem', verticalAlign: 'middle' },
+  alert:        { backgroundColor: 'var(--bg-badge-yellow)', border: '1px solid var(--accent-warning)', color: 'var(--text-badge-yellow)', padding: '0.875rem 1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.25rem', fontSize: '0.9rem' },
+  emptyState:   { textAlign: 'center', padding: '4rem 2rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' },
+  emptyIcon:    { fontSize: '2.5rem', marginBottom: '0.75rem' },
+  emptyText:    { color: 'var(--text-secondary)', fontSize: '0.95rem' },
 }

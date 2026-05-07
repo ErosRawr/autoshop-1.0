@@ -2,26 +2,27 @@ import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import api from '../api'
 import Layout from '../components/Layout'
-
-const LOCATION_ID = 1
+import { useLocation } from '../context/LocationContext'
 
 export default function DashboardPage() {
-  const [stats, setStats]       = useState(null)
+  const [stats, setStats]           = useState(null)
   const [workOrders, setWorkOrders] = useState([])
-  const [stock, setStock]       = useState([])
-  const [invoices, setInvoices] = useState([])
-  const [loading, setLoading]   = useState(true)
+  const [stock, setStock]           = useState([])
+  const [invoices, setInvoices]     = useState([])
+  const [loading, setLoading]       = useState(true)
+  const { currentLocation }         = useLocation()
 
   useEffect(() => {
-    fetchAll()
-  }, [])
+    if (currentLocation) fetchAll()
+  }, [currentLocation])
 
   async function fetchAll() {
+    setLoading(true)
     try {
       const [woRes, stockRes, invoicesRes, customersRes] = await Promise.all([
-        api.get('/workorders'),
-        api.get(`/inventory?location_id=${LOCATION_ID}`),
-        api.get('/invoices'),
+        api.get(`/workorders?location_id=${currentLocation.location_id}`),
+        api.get(`/inventory?location_id=${currentLocation.location_id}`),
+        api.get(`/invoices?location_id=${currentLocation.location_id}`),
         api.get('/customers'),
       ])
 
@@ -29,7 +30,6 @@ export default function DashboardPage() {
       const inv      = invoicesRes.data
       const customers = customersRes.data
 
-      // Calculate stats from the data we already have
       const totalRevenue = inv
         .filter(i => i.status === 'paid')
         .reduce((sum, i) => sum + parseFloat(i.total), 0)
@@ -39,17 +39,17 @@ export default function DashboardPage() {
         .reduce((sum, i) => sum + parseFloat(i.total), 0)
 
       setStats({
-        totalCustomers:  customers.length,
-        openWO:          wo.filter(w => w.status === 'open').length,
-        inProgressWO:    wo.filter(w => w.status === 'in_progress').length,
-        completedWO:     wo.filter(w => w.status === 'completed').length,
+        totalCustomers: customers.length,
+        openWO:         wo.filter(w => w.status === 'open').length,
+        inProgressWO:   wo.filter(w => w.status === 'in_progress').length,
+        completedWO:    wo.filter(w => w.status === 'completed').length,
         totalRevenue,
         outstanding,
-        lowStock:        stockRes.data.filter(s => s.is_low_stock).length,
-        totalInvoices:   inv.length,
+        lowStock:       stockRes.data.filter(s => s.is_low_stock).length,
+        totalInvoices:  inv.length,
       })
 
-      setWorkOrders(wo.slice(0, 6))   // 6 most recent
+      setWorkOrders(wo.slice(0, 6))
       setStock(stockRes.data.slice(0, 5))
       setInvoices(inv.slice(0, 5))
     } catch (err) {
@@ -59,13 +59,12 @@ export default function DashboardPage() {
     }
   }
 
-  if (loading) return <Layout><p>Loading dashboard...</p></Layout>
+  if (loading) return <Layout><p style={styles.loading}>Loading dashboard...</p></Layout>
 
-  // Build chart data from work orders by status
   const woChartData = [
-    { name: 'Open',          value: stats.openWO,       color: '#3b82f6' },
-    { name: 'In Progress',   value: stats.inProgressWO, color: '#f59e0b' },
-    { name: 'Completed',     value: stats.completedWO,  color: '#10b981' },
+    { name: 'Open',        value: stats.openWO,       color: '#3b82f6' },
+    { name: 'In Progress', value: stats.inProgressWO, color: '#f59e0b' },
+    { name: 'Completed',   value: stats.completedWO,  color: '#10b981' },
   ]
 
   const STATUS_COLORS = {
@@ -86,21 +85,25 @@ export default function DashboardPage() {
 
   return (
     <Layout>
-      <h2 style={styles.title}>Dashboard</h2>
+      <div style={styles.titleRow}>
+        <h2 style={styles.title}>Dashboard</h2>
+        {currentLocation && (
+          <span style={styles.locationBadge}>📍 {currentLocation.name}</span>
+        )}
+      </div>
 
       {/* Stat Cards */}
       <div style={styles.statsGrid}>
-        <StatCard label="Total Customers"  value={stats.totalCustomers}               color="#2563eb" icon="👥" />
-        <StatCard label="Open Work Orders" value={stats.openWO}                       color="#f59e0b" icon="🔧" />
-        <StatCard label="In Progress"      value={stats.inProgressWO}                 color="#8b5cf6" icon="⚙️" />
+        <StatCard label="Total Customers"  value={stats.totalCustomers}                color="#2563eb" icon="👥" />
+        <StatCard label="Open Work Orders" value={stats.openWO}                        color="#f59e0b" icon="🔧" />
+        <StatCard label="In Progress"      value={stats.inProgressWO}                  color="#8b5cf6" icon="⚙️" />
         <StatCard label="Total Revenue"    value={`$${stats.totalRevenue.toFixed(2)}`} color="#10b981" icon="💰" />
         <StatCard label="Outstanding"      value={`$${stats.outstanding.toFixed(2)}`}  color="#ef4444" icon="📋" />
-        <StatCard label="Low Stock Items"  value={stats.lowStock}                      color="#f97316" icon="⚠️" />
+        <StatCard label="Low Stock Items"  value={stats.lowStock}                       color="#f97316" icon="⚠️" />
       </div>
 
-      {/* Charts + Tables row */}
+      {/* Charts row */}
       <div style={styles.row}>
-
         {/* Work Order Status Chart */}
         <div style={styles.card}>
           <h3 style={styles.cardTitle}>Work Orders by Status</h3>
@@ -118,7 +121,7 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         </div>
 
-        {/* Low Stock Warning */}
+        {/* Inventory Status */}
         <div style={styles.card}>
           <h3 style={styles.cardTitle}>
             Inventory Status
@@ -159,7 +162,6 @@ export default function DashboardPage() {
 
       {/* Bottom row */}
       <div style={styles.row}>
-
         {/* Recent Work Orders */}
         <div style={styles.card}>
           <h3 style={styles.cardTitle}>Recent Work Orders</h3>
@@ -227,13 +229,11 @@ export default function DashboardPage() {
             </table>
           )}
         </div>
-
       </div>
     </Layout>
   )
 }
 
-// Reusable stat card component
 function StatCard({ label, value, color, icon }) {
   return (
     <div style={styles.statCard}>
@@ -249,7 +249,10 @@ function StatCard({ label, value, color, icon }) {
 }
 
 const styles = {
-  title:       { fontSize: '1.5rem', fontWeight: '700', marginBottom: '1.5rem' },
+  titleRow:    { display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' },
+  title:       { fontSize: '1.5rem', fontWeight: '700' },
+  locationBadge: { fontSize: '0.8rem', fontWeight: '600', backgroundColor: 'var(--bg-badge-blue)', color: 'var(--text-badge-blue)', padding: '0.25rem 0.75rem', borderRadius: '999px' },
+  loading:     { color: 'var(--text-muted)', padding: '2rem', textAlign: 'center' },
   statsGrid:   { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' },
   statCard:    { backgroundColor: 'var(--bg-card)', padding: '1.25rem', borderRadius: '12px', boxShadow: 'var(--shadow-sm)', display: 'flex', alignItems: 'center', gap: '1rem' },
   statIcon:    { width: '52px', height: '52px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
@@ -257,14 +260,14 @@ const styles = {
   statValue:   { fontSize: '1.6rem', fontWeight: '700' },
   row:         { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' },
   card:        { backgroundColor: 'var(--bg-card)', padding: '1.25rem', borderRadius: '12px', boxShadow: 'var(--shadow-sm)' },
-  cardTitle:   { fontWeight: '700', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  alertBadge:  { backgroundColor: '#fef9c3', color: '#854d0e', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: '600' },
+  cardTitle:   { fontWeight: '700', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-primary)' },
+  alertBadge:  { backgroundColor: 'var(--bg-badge-yellow)', color: 'var(--text-badge-yellow)', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: '600' },
   empty:       { color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '2rem 0' },
   table:       { width: '100%', borderCollapse: 'collapse' },
   th:          { padding: '0.5rem 0.75rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' },
   tr:          { borderBottom: '1px solid var(--border)' },
   td:          { padding: '0.6rem 0.75rem', fontSize: '0.875rem', color: 'var(--text-primary)' },
   badge:       { padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: '600' },
-  badgeLow:    { backgroundColor: '#fee2e2', color: '#b91c1c', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: '600' },
-  badgeOk:     { backgroundColor: '#dcfce7', color: '#15803d', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: '600' },
+  badgeLow:    { backgroundColor: 'var(--bg-badge-red)',   color: 'var(--text-badge-red)',   padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: '600' },
+  badgeOk:     { backgroundColor: 'var(--bg-badge-green)', color: 'var(--text-badge-green)', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: '600' },
 }

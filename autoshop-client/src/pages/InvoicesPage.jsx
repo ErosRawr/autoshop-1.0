@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import api from '../api'
 import Layout from '../components/Layout'
 import { shared } from '../styles/shared'
+import { useLocation } from '../context/LocationContext'
 
 const STATUS_BADGE = {
   draft:          { ...shared.badge, ...shared.badgeGray   },
@@ -17,12 +18,15 @@ export default function InvoicesPage() {
   const [selected, setSelected] = useState(null)
   const [paying, setPaying]     = useState(false)
   const [payForm, setPayForm]   = useState({ amount: '', payment_method: 'cash', reference: '' })
+  const { currentLocation }     = useLocation()
 
-  useEffect(() => { fetchInvoices() }, [])
+  useEffect(() => {
+    if (currentLocation) fetchInvoices()
+  }, [currentLocation])
 
   async function fetchInvoices() {
     try {
-      const res = await api.get('/invoices')
+      const res = await api.get(`/invoices?location_id=${currentLocation.location_id}`)
       setInvoices(res.data)
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
@@ -58,14 +62,22 @@ export default function InvoicesPage() {
   return (
     <Layout>
       <div style={shared.pageHeader}>
-        <h2 style={shared.pageTitle}>Invoices</h2>
+        <h2 style={shared.pageTitle}>
+          Invoices
+          {currentLocation && (
+            <span style={styles.locationBadge}>{currentLocation.name}</span>
+          )}
+        </h2>
       </div>
 
       <div style={styles.splitView}>
         {/* List */}
         <div style={styles.list}>
           {invoices.length === 0 ? (
-            <p style={shared.empty}>No invoices yet.</p>
+            <div style={styles.emptyState}>
+              <p style={styles.emptyIcon}>🧾</p>
+              <p style={styles.emptyText}>No invoices at {currentLocation?.name} yet</p>
+            </div>
           ) : invoices.map(inv => (
             <div
               key={inv.invoice_id}
@@ -219,6 +231,7 @@ export default function InvoicesPage() {
 }
 
 const styles = {
+  locationBadge:   { fontSize: '0.75rem', fontWeight: '600', backgroundColor: 'var(--bg-badge-blue)', color: 'var(--text-badge-blue)', padding: '0.2rem 0.6rem', borderRadius: '999px', marginLeft: '0.75rem', verticalAlign: 'middle' },
   splitView:       { display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1.5rem', alignItems: 'start' },
   list:            { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
   invoiceCard:     { backgroundColor: 'var(--bg-card)', padding: '1rem', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-sm)', cursor: 'pointer', border: '2px solid var(--border)', transition: 'border-color 0.15s' },
@@ -243,4 +256,7 @@ const styles = {
   totalFinal:      { fontWeight: '700', fontSize: '1.05rem', borderTop: '1px solid var(--border)', marginTop: '0.5rem', paddingTop: '0.5rem' },
   paymentRow:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' },
   payForm:         { display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' },
+  emptyState:      { textAlign: 'center', padding: '3rem 1rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' },
+  emptyIcon:       { fontSize: '2.5rem', marginBottom: '0.75rem' },
+  emptyText:       { color: 'var(--text-secondary)', fontSize: '0.95rem' },
 }
