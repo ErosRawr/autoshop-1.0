@@ -1,12 +1,14 @@
+// autoshop/src/controllers/workorders.controller.js
 const pool = require('../db/pool')
 
 // GET /workorders?location_id=1&status=open
 async function getAll(req, res) {
   const { location_id, status } = req.query
 
-  const scopedLocation = req.user.role === 'mechanic'
-    ? req.user.location_id
-    : location_id
+  // Mechanics and receptionists are always scoped to their own location
+  const scopedLocation = req.user.role === 'admin'
+    ? location_id
+    : req.user.location_id
 
   try {
     let query = `
@@ -45,7 +47,7 @@ async function getAll(req, res) {
   }
 }
 
-// GET /workorders/:id  (full detail with services, parts and mechanics)
+// GET /workorders/:id
 async function getOne(req, res) {
   const { id } = req.params
   try {
@@ -66,6 +68,13 @@ async function getOne(req, res) {
     )
     if (woResult.rows.length === 0) {
       return res.status(404).json({ message: 'Work order not found' })
+    }
+
+    // Non-admins can only view work orders from their own location
+    const wo = woResult.rows[0]
+    if (req.user.role !== 'admin' &&
+        parseInt(wo.location_id) !== parseInt(req.user.location_id)) {
+      return res.status(403).json({ message: 'Access denied' })
     }
 
     const servicesResult = await pool.query(
@@ -111,14 +120,17 @@ async function getOne(req, res) {
 // POST /workorders
 async function create(req, res) {
   const {
-    location_id, customer_id, vehicle_id,
+    customer_id, vehicle_id,
     priority, mileage, fuel_level,
     problem_description, date_estimated
   } = req.body
 
-  if (!location_id || !customer_id || !vehicle_id) {
-    return res.status(400).json({ message: 'location_id, customer_id and vehicle_id are required' })
+  if (!customer_id || !vehicle_id) {
+    return res.status(400).json({ message: 'customer_id and vehicle_id are required' })
   }
+
+  // Always use the location from the token — never trust the client to send it
+  const location_id = req.user.location_id
 
   try {
     const result = await pool.query(
@@ -128,7 +140,9 @@ async function create(req, res) {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
-        location_id, customer_id, vehicle_id,
+        location_id,
+        customer_id,
+        vehicle_id,
         req.user.user_id,
         new Date(),
         date_estimated      || null,
@@ -156,6 +170,19 @@ async function updateStatus(req, res) {
   }
 
   try {
+    // Verify the work order belongs to the user's location before updating
+    const check = await pool.query(
+      'SELECT location_id FROM work_orders WHERE work_order_id = $1',
+      [id]
+    )
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: 'Work order not found' })
+    }
+    if (req.user.role !== 'admin' &&
+        parseInt(check.rows[0].location_id) !== parseInt(req.user.location_id)) {
+      return res.status(403).json({ message: 'Access denied' })
+    }
+
     const result = await pool.query(
       `UPDATE work_orders
        SET status = $1, updated_at = now()
@@ -163,9 +190,6 @@ async function updateStatus(req, res) {
        RETURNING *`,
       [status, id]
     )
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Work order not found' })
-    }
     res.json(result.rows[0])
   } catch (err) {
     console.error(err)
@@ -181,8 +205,24 @@ async function addService(req, res) {
   if (!service_id || !mechanic_id) {
     return res.status(400).json({ message: 'service_id and mechanic_id are required' })
   }
+  if (!price_at_time || isNaN(parseFloat(price_at_time))) {
+    return res.status(400).json({ message: 'price_at_time must be a valid number' })
+  }
 
   try {
+    // Verify location ownership before mutating
+    const check = await pool.query(
+      'SELECT location_id FROM work_orders WHERE work_order_id = $1',
+      [id]
+    )
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: 'Work order not found' })
+    }
+    if (req.user.role !== 'admin' &&
+        parseInt(check.rows[0].location_id) !== parseInt(req.user.location_id)) {
+      return res.status(403).json({ message: 'Access denied' })
+    }
+
     const result = await pool.query(
       `INSERT INTO workorder_services (work_order_id, service_id, mechanic_id, hours, price_at_time)
        VALUES ($1, $2, $3, $4, $5)
@@ -204,8 +244,23 @@ async function addPart(req, res) {
   if (!part_id || !quantity) {
     return res.status(400).json({ message: 'part_id and quantity are required' })
   }
+  if (!price_at_time || !cost_price_at_time) {
+    return res.status(400).json({ message: 'price_at_time and cost_price_at_time are required' })
+  }
 
   try {
+    const check = await pool.query(
+      'SELECT location_id FROM work_orders WHERE work_order_id = $1',
+      [id]
+    )
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: 'Work order not found' })
+    }
+    if (req.user.role !== 'admin' &&
+        parseInt(check.rows[0].location_id) !== parseInt(req.user.location_id)) {
+      return res.status(403).json({ message: 'Access denied' })
+    }
+
     const result = await pool.query(
       `INSERT INTO workorder_parts (work_order_id, part_id, quantity, price_at_time, cost_price_at_time)
        VALUES ($1, $2, $3, $4, $5)
@@ -219,10 +274,22 @@ async function addPart(req, res) {
   }
 }
 
-  // DELETE /workorders/:id/services/:serviceId
+// DELETE /workorders/:id/services/:serviceId
 async function removeService(req, res) {
   const { id, serviceId } = req.params
   try {
+    const check = await pool.query(
+      'SELECT location_id FROM work_orders WHERE work_order_id = $1',
+      [id]
+    )
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: 'Work order not found' })
+    }
+    if (req.user.role !== 'admin' &&
+        parseInt(check.rows[0].location_id) !== parseInt(req.user.location_id)) {
+      return res.status(403).json({ message: 'Access denied' })
+    }
+
     const result = await pool.query(
       `DELETE FROM workorder_services
        WHERE id = $1 AND work_order_id = $2
@@ -243,7 +310,6 @@ async function removeService(req, res) {
 async function removePart(req, res) {
   const { id, partLineId } = req.params
   try {
-    // First get the quantity so we can restore stock
     const line = await pool.query(
       `SELECT part_id, quantity FROM workorder_parts
        WHERE id = $1 AND work_order_id = $2`,
@@ -253,19 +319,20 @@ async function removePart(req, res) {
       return res.status(404).json({ message: 'Part line not found' })
     }
 
-    // Get the work order's location
     const wo = await pool.query(
       `SELECT location_id, created_by FROM work_orders WHERE work_order_id = $1`,
       [id]
     )
+    if (req.user.role !== 'admin' &&
+        parseInt(wo.rows[0].location_id) !== parseInt(req.user.location_id)) {
+      return res.status(403).json({ message: 'Access denied' })
+    }
 
-    // Delete the part line — trigger will handle restoring stock
     await pool.query(
       `DELETE FROM workorder_parts WHERE id = $1`,
       [partLineId]
     )
 
-    // Manually restore stock since the trigger only fires on INSERT
     await pool.query(
       `INSERT INTO inventory_movements (location_id, part_id, user_id, work_order_id, quantity, reason)
        VALUES ($1, $2, $3, $4, $5, 'adjustment')`,
@@ -299,4 +366,8 @@ async function removeMechanic(req, res) {
   }
 }
 
-module.exports = { getAll, getOne, create, updateStatus, addService, addPart, removeService, removePart, removeMechanic }
+module.exports = {
+  getAll, getOne, create, updateStatus,
+  addService, addPart,
+  removeService, removePart, removeMechanic
+}

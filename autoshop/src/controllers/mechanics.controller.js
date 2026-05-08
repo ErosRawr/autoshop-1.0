@@ -1,14 +1,35 @@
+// autoshop/src/controllers/mechanics.controller.js
 const pool = require('../db/pool')
 
+// GET /mechanics?location_id=1
+// Scoped: only returns mechanics assigned to the given location.
+// If no location_id is provided, admins get all mechanics.
 async function getAll(req, res) {
+  const { location_id } = req.query
+
+  // Mechanics are always scoped to their own location
+  // Non-admin users are forced to their own location_id from the token
+  const scopedLocation = req.user.role !== 'admin'
+    ? req.user.location_id
+    : location_id
+
   try {
-    const result = await pool.query(
-      `SELECT m.mechanic_id, m.specialty, u.name, u.username, u.is_active, u.location_id
-       FROM mechanics m
-       JOIN users u ON u.user_id = m.user_id
-       WHERE u.is_active = true
-       ORDER BY u.name ASC`
-    )
+    let query = `
+      SELECT m.mechanic_id, m.specialty, u.name, u.username, u.is_active, u.location_id
+      FROM mechanics m
+      JOIN users u ON u.user_id = m.user_id
+      WHERE u.is_active = true
+    `
+    const params = []
+
+    if (scopedLocation) {
+      params.push(scopedLocation)
+      query += ` AND u.location_id = $${params.length}`
+    }
+
+    query += ` ORDER BY u.name ASC`
+
+    const result = await pool.query(query, params)
     res.json(result.rows)
   } catch (err) {
     console.error(err)
