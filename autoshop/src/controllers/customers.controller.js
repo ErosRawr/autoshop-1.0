@@ -1,17 +1,28 @@
 const pool = require('../db/pool')
 
 // GET /customers
+// Support filtering for active-only: /customers?activeOnly=true
 async function getAll(req, res) {
+  const { activeOnly } = req.query;
+  
   try {
-    const result = await pool.query(
-      `SELECT customer_id, name, phone, email, rfc, business_name, is_active, created_at
-       FROM customers
-       ORDER BY created_at DESC`
-    )
-    res.json(result.rows)
+    let queryText = `
+      SELECT customer_id, name, phone, email, rfc, business_name, is_active, created_at
+      FROM customers
+    `;
+
+    // If activeOnly is passed as true, filter out soft-deleted records
+    if (activeOnly === 'true') {
+      queryText += ` WHERE is_active = true`;
+    }
+
+    queryText += ` ORDER BY created_at DESC`;
+
+    const result = await pool.query(queryText);
+    res.json(result.rows);
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ message: 'Server error' })
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
   }
 }
 
@@ -37,17 +48,12 @@ async function getOne(req, res) {
 // POST /customers
 async function create(req, res) {
   const { name, phone, email, rfc, business_name, fiscal_address } = req.body
-
-  if (!name || !phone) {
-    return res.status(400).json({ message: 'name and phone are required' })
-  }
-
   try {
     const result = await pool.query(
       `INSERT INTO customers (name, phone, email, rfc, business_name, fiscal_address)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [name, phone, email || null, rfc || null, business_name || null, fiscal_address || null]
+      [name, phone, email, rfc, business_name, fiscal_address]
     )
     res.status(201).json(result.rows[0])
   } catch (err) {
@@ -59,7 +65,7 @@ async function create(req, res) {
 // PUT /customers/:id
 async function update(req, res) {
   const { id } = req.params
-  const { name, phone, email, rfc, business_name, fiscal_address } = req.body
+  const { name, phone, email, rfc, business_name, fiscal_address, is_active } = req.body
 
   try {
     const result = await pool.query(
@@ -70,10 +76,11 @@ async function update(req, res) {
            rfc            = COALESCE($4, rfc),
            business_name  = COALESCE($5, business_name),
            fiscal_address = COALESCE($6, fiscal_address),
+           is_active      = COALESCE($7, is_active),
            updated_at     = now()
-       WHERE customer_id = $7
+       WHERE customer_id = $8
        RETURNING *`,
-      [name, phone, email, rfc, business_name, fiscal_address, id]
+      [name, phone, email, rfc, business_name, fiscal_address, is_active, id]
     )
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Customer not found' })
@@ -85,7 +92,7 @@ async function update(req, res) {
   }
 }
 
-// DELETE /customers/:id  (soft delete)
+// DELETE /customers/:id (soft delete)
 async function remove(req, res) {
   const { id } = req.params
   try {
@@ -97,11 +104,17 @@ async function remove(req, res) {
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Customer not found' })
     }
-    res.json({ message: 'Customer deactivated' })
+    res.json({ message: 'Customer deactivated successfully', customer_id: id })
   } catch (err) {
     console.error(err)
     res.status(500).json({ message: 'Server error' })
   }
 }
 
-module.exports = { getAll, getOne, create, update, remove }
+module.exports = {
+  getAll,
+  getOne,
+  create,
+  update,
+  remove
+}

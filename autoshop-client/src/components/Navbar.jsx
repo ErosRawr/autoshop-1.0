@@ -2,16 +2,17 @@ import { Link, useLocation as useRouterLocation } from 'react-router-dom'
 import { useAuth }     from '../context/AuthContext'
 import { useTheme }    from '../context/ThemeContext'
 import { useLocation } from '../context/LocationContext'
+const { user } = useAuth()
 
 const links = [
-  { to: '/',           label: 'Dashboard'   },
-  { to: '/customers',  label: 'Customers'   },
-  { to: '/vehicles',   label: 'Vehicles'    },
-  { to: '/workorders', label: 'Work Orders' },
-  { to: '/inventory',  label: 'Inventory'   },
-  { to: '/invoices',   label: 'Invoices'    },
-  { to: '/locations',  label: 'Locations'   },
-]
+  { to: '/',           label: 'Dashboard',   roles: ['admin', 'receptionist', 'mechanic'] },
+  { to: '/customers',  label: 'Customers',   roles: ['admin', 'receptionist'] },
+  { to: '/vehicles',   label: 'Vehicles',    roles: ['admin', 'receptionist'] },
+  { to: '/workorders', label: 'Work Orders', roles: ['admin', 'receptionist', 'mechanic'] },
+  { to: '/inventory',  label: 'Inventory',   roles: ['admin', 'receptionist'] },
+  { to: '/invoices',   label: 'Invoices',    roles: ['admin', 'receptionist'] },
+  { to: '/locations',  label: 'Locations',   roles: ['admin'] },
+].filter(l => l.roles.includes(user?.role))
 
 export default function Navbar() {
   const { user, logout }               = useAuth()
