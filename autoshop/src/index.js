@@ -14,6 +14,7 @@ const paymentRoutes  = require('./routes/payments.routes')
 const mechanicRoutes     = require('./routes/mechanics.routes')
 const serviceRoutes      = require('./routes/services.routes')
 const appointmentRoutes  = require('./routes/appointments.routes')
+const locationRoutes     = require('./routes/locations.routes')
 
 const app  = express()
 const PORT = process.env.PORT || 3000
@@ -33,6 +34,7 @@ app.use('/payments',  paymentRoutes)
 app.use('/mechanics',    mechanicRoutes)
 app.use('/services',     serviceRoutes)
 app.use('/appointments', appointmentRoutes)
+app.use('/locations', locationRoutes)
 
 app.get('/health', async (req, res) => {
   try {

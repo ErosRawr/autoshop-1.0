@@ -8,8 +8,6 @@ import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
 import { useLocation } from '../context/LocationContext'
 
-const { currentLocation } = useLocation()
-
 const STATUS_BADGE = {
   open:          { ...shared.badge, ...shared.badgeBlue   },
   in_progress:   { ...shared.badge, ...shared.badgeYellow },
@@ -36,23 +34,19 @@ export default function WorkOrdersPage() {
   const [showForm, setShowForm]     = useState(false)
   const [saving, setSaving]         = useState(false)
   const [selected, setSelected]     = useState(null)
-  const [form, setForm] = useState({
-  location_id: '', customer_id: '', vehicle_id: '',
-  priority: 'normal', mileage: '', problem_description: ''
-  })
   const [detail, setDetail]         = useState(null)
   const [filterStatus, setFilterStatus] = useState('')
   const [search, setSearch]         = useState('')
+  
   const [form, setForm] = useState({
-  location_id: '', customer_id: '', vehicle_id: '',
-  priority: 'normal', mileage: '', problem_description: ''
+    location_id: '', customer_id: '', vehicle_id: '',
+    priority: 'normal', mileage: '', problem_description: ''
   })
-  const { toggle, sort, indicator } = useSort('created_at', 'desc')
-  const { currentLocation }         = useLocation()
+  
+  const { toggle, sort, indicator }   = useSort('created_at', 'desc')
+  const { currentLocation }           = useLocation()
   const [serviceForm, setServiceForm] = useState({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
   const [partForm, setPartForm]       = useState({ part_id: '', quantity: '1', price_at_time: '', cost_price_at_time: '' })
-
-  const { toggle, sort, indicator } = useSort('created_at', 'desc')
 
   useEffect(() => { fetchAll() }, [])
 
@@ -94,18 +88,40 @@ export default function WorkOrdersPage() {
   function handleChange(e) { setForm({ ...form, [e.target.name]: e.target.value }) }
   function handleCustomerChange(e) { setForm({ ...form, customer_id: e.target.value, vehicle_id: '' }) }
 
-  const filteredVehicles = vehicles.filter(v => v.customer_id === parseInt(form.customer_id))
+  const filteredVehicles = vehicles.filter(v => String(v.customer_id) === String(form.customer_id))
 
   async function handleSubmit(e) {
-    e.preventDefault()
-    setSaving(true)
+    e.preventDefault();
+    setSaving(true);
     try {
-      await api.post('/workorders', form)
-      setForm({ location_id: String(currentLocation.location_id), customer_id: '', vehicle_id: '', priority: 'normal', mileage: '', problem_description: '' })
-      fetchAll()
+      // Inject the location_id into the payload
+      await api.post('/workorders', {
+        ...form,
+        location_id: currentLocation.location_id 
+      });
+
+      // Reset form
+      setForm({ 
+        location_id: '', // Reset for next use
+        customer_id: '', 
+        vehicle_id: '', 
+        priority: 'normal', 
+        mileage: '', 
+        problem_description: '' 
+      });
+      
+      setShowForm(false); // Optional: close form on success
+      fetchAll();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create work order')
-    } finally { setSaving(false) }
+      alert(err.response?.data?.message || 'Failed to create work order');
+    } finally {
+      setSaving(false);
+    }
+    useEffect(() => {
+      if (currentLocation?.location_id) {
+      setForm(prev => ({ ...prev, location_id: currentLocation.location_id }));
+      }
+    }, [currentLocation]);
   }
 
   async function handleStatusChange(id, status) {

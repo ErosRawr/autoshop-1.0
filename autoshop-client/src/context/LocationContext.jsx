@@ -6,9 +6,9 @@ const LocationContext = createContext(null)
 
 export function LocationProvider({ children }) {
   const { user } = useAuth()
-  const [locations, setLocations]           = useState([])
+  const [locations, setLocations]             = useState([])
   const [currentLocation, setCurrentLocation] = useState(null)
-  const [loading, setLoading]               = useState(true)
+  const [loading, setLoading]                 = useState(true)
 
   useEffect(() => {
     if (!user) return
@@ -18,24 +18,18 @@ export function LocationProvider({ children }) {
   async function fetchLocations() {
     try {
       const res = await api.get('/locations')
-      setLocations(res.data)
+      const locs = res.data
+      setLocations(locs)
 
-      // Mechanics are locked to their own location
-      // Admins/managers default to their assigned location
-      // but can switch to any
-      const userLocation = res.data.find(
-        l => l.location_id === parseInt(user.location_id)
-      )
-      const saved = localStorage.getItem('selected_location')
-      const savedLocation = saved ? res.data.find(
-        l => l.location_id === parseInt(saved)
-      ) : null
+      // Use String() everywhere — pg returns bigserial as strings
+      const saved       = localStorage.getItem('selected_location')
+      const userLoc     = locs.find(l => String(l.location_id) === String(user.location_id))
+      const savedLoc    = saved ? locs.find(l => String(l.location_id) === String(saved)) : null
 
-      // Mechanics can't switch — always use their assigned location
       if (user.role === 'mechanic') {
-        setCurrentLocation(userLocation || res.data[0])
+        setCurrentLocation(userLoc || locs[0])
       } else {
-        setCurrentLocation(savedLocation || userLocation || res.data[0])
+        setCurrentLocation(savedLoc || userLoc || locs[0])
       }
     } catch (err) {
       console.error(err)
@@ -45,10 +39,11 @@ export function LocationProvider({ children }) {
   }
 
   function switchLocation(locationId) {
-    const loc = locations.find(l => l.location_id === parseInt(locationId))
+    // String() comparison — avoids "1" === 1 always being false
+    const loc = locations.find(l => String(l.location_id) === String(locationId))
     if (loc) {
       setCurrentLocation(loc)
-      localStorage.setItem('selected_location', locationId)
+      localStorage.setItem('selected_location', String(locationId))
     }
   }
 

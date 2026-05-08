@@ -9,6 +9,9 @@ import VehiclesPage    from './pages/VehiclesPage'
 import WorkOrdersPage  from './pages/WorkOrdersPage'
 import InvoicesPage    from './pages/InvoicesPage'
 import InventoryPage   from './pages/InventoryPage'
+import LocationsPage from './pages/LocationsPage'
+
+
 
 function ProtectedRoute({ children }) {
   const { token } = useAuth()
@@ -28,6 +31,7 @@ function AppRoutes() {
       <Route path="/workorders" element={<ProtectedRoute><WorkOrdersPage /></ProtectedRoute>} />
       <Route path="/invoices"   element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
       <Route path="/inventory"  element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
+      <Route path="/locations" element={<ProtectedRoute><LocationsPage /></ProtectedRoute>} />
     </Routes>
   )
 }

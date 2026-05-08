@@ -86,7 +86,7 @@ export default function LocationsPage() {
             {currentLocation?.location_id !== loc.location_id && (
               <button
                 style={{ ...shared.btnPrimary, marginTop: '1rem', width: '100%' }}
-                onClick={() => switchLocation(loc.location_id)}
+                onClick={() => switchLocation(String(loc.location_id))}
               >
                 Switch to this location
               </button>
