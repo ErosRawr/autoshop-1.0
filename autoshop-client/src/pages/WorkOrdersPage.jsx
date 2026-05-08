@@ -6,6 +6,7 @@ import TableMeta  from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
+import { useRole } from '../hooks/useRole'
 import { useLocation } from '../context/LocationContext'
 
 const STATUS_BADGE = {
@@ -34,21 +35,27 @@ export default function WorkOrdersPage() {
   const [showForm, setShowForm]     = useState(false)
   const [saving, setSaving]         = useState(false)
   const [selected, setSelected]     = useState(null)
-  const [detail, setDetail]         = useState(null)
-  const [filterStatus, setFilterStatus] = useState('')
-  const [search, setSearch]         = useState('')
-  
-  const [form, setForm] = useState({
+  const [form, setForm]             = useState({
     location_id: '', customer_id: '', vehicle_id: '',
     priority: 'normal', mileage: '', problem_description: ''
   })
-  
-  const { toggle, sort, indicator }   = useSort('created_at', 'desc')
-  const { currentLocation }           = useLocation()
-  const [serviceForm, setServiceForm] = useState({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
-  const [partForm, setPartForm]       = useState({ part_id: '', quantity: '1', price_at_time: '', cost_price_at_time: '' })
+  const [detail, setDetail]             = useState(null)
+  const [filterStatus, setFilterStatus] = useState('')
+  const [search, setSearch]             = useState('')
+  const [serviceForm, setServiceForm]   = useState({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
+  const [partForm, setPartForm]         = useState({ part_id: '', quantity: '1', price_at_time: '', cost_price_at_time: '' })
 
-  useEffect(() => { fetchAll() }, [])
+  // ✅ All hooks called inside the component, never at module level
+  const { toggle, sort, indicator } = useSort('created_at', 'desc')
+  const { currentLocation }         = useLocation()
+  const canEdit                     = useRole('admin', 'receptionist')
+
+  useEffect(() => {
+    if (currentLocation) {
+      setForm(f => ({ ...f, location_id: String(currentLocation.location_id) }))
+      fetchAll()
+    }
+  }, [currentLocation])
 
   async function fetchAll() {
     try {
@@ -88,40 +95,19 @@ export default function WorkOrdersPage() {
   function handleChange(e) { setForm({ ...form, [e.target.name]: e.target.value }) }
   function handleCustomerChange(e) { setForm({ ...form, customer_id: e.target.value, vehicle_id: '' }) }
 
-  const filteredVehicles = vehicles.filter(v => String(v.customer_id) === String(form.customer_id))
+  const filteredVehicles = vehicles.filter(v => v.customer_id === parseInt(form.customer_id))
 
   async function handleSubmit(e) {
-    e.preventDefault();
-    setSaving(true);
+    e.preventDefault()
+    setSaving(true)
     try {
-      // Inject the location_id into the payload
-      await api.post('/workorders', {
-        ...form,
-        location_id: currentLocation.location_id 
-      });
-
-      // Reset form
-      setForm({ 
-        location_id: '', // Reset for next use
-        customer_id: '', 
-        vehicle_id: '', 
-        priority: 'normal', 
-        mileage: '', 
-        problem_description: '' 
-      });
-      
-      setShowForm(false); // Optional: close form on success
-      fetchAll();
+      await api.post('/workorders', { ...form, location_id: currentLocation.location_id })
+      setForm({ location_id: String(currentLocation.location_id), customer_id: '', vehicle_id: '', priority: 'normal', mileage: '', problem_description: '' })
+      setShowForm(false)
+      fetchAll()
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create work order');
-    } finally {
-      setSaving(false);
-    }
-    useEffect(() => {
-      if (currentLocation?.location_id) {
-      setForm(prev => ({ ...prev, location_id: currentLocation.location_id }));
-      }
-    }, [currentLocation]);
+      alert(err.response?.data?.message || 'Failed to create work order')
+    } finally { setSaving(false) }
   }
 
   async function handleStatusChange(id, status) {
@@ -186,7 +172,6 @@ export default function WorkOrdersPage() {
     }
   }
 
-  // String comparison — pg returns ids as strings
   function handleServiceSelect(e) {
     const svc = services.find(s => String(s.service_id) === e.target.value)
     setServiceForm({ ...serviceForm, service_id: e.target.value, price_at_time: svc ? String(svc.base_price) : '' })
@@ -202,7 +187,6 @@ export default function WorkOrdersPage() {
     })
   }
 
-  // Compute mechanics summary from services — no manual entry needed
   function getMechanicsSummary(services = []) {
     return Object.values(
       services.reduce((acc, s) => {
@@ -245,13 +229,18 @@ export default function WorkOrdersPage() {
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          {showForm && <button style={shared.btnGhost} onClick={() => setShowForm(false)}>Cancel</button>}
-          <button style={shared.btnPrimary} onClick={() => setShowForm(!showForm)}>+ New Work Order</button>
+          {/* ✅ useRole gates the button — mechanic never sees it */}
+          {canEdit && (
+            <>
+              {showForm && <button style={shared.btnGhost} onClick={() => setShowForm(false)}>Cancel</button>}
+              <button style={shared.btnPrimary} onClick={() => setShowForm(!showForm)}>+ New Work Order</button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* New WO Form */}
-      {showForm && (
+      {/* New WO Form — only rendered when canEdit is true */}
+      {canEdit && showForm && (
         <div style={{ ...shared.card, marginBottom: '1.5rem' }}>
           <h3 style={styles.sectionTitle}>New Work Order</h3>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -324,7 +313,7 @@ export default function WorkOrdersPage() {
                     <SortableTh label="Priority" sortKey="priority"      currentKey="priority"      onSort={toggle} indicator={indicator} />
                     <SortableTh label="Status"   sortKey="status"        currentKey="status"        onSort={toggle} indicator={indicator} />
                     <SortableTh label="Opened"   sortKey="created_at"    currentKey="created_at"    onSort={toggle} indicator={indicator} />
-                    <th style={shared.th}>Update Status</th>
+                    {canEdit && <th style={shared.th}>Update Status</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -351,19 +340,22 @@ export default function WorkOrdersPage() {
                       <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>
                         {new Date(wo.created_at).toLocaleDateString()}
                       </td>
-                      <td style={shared.td} onClick={e => e.stopPropagation()}>
-                        <select
-                          style={{ ...shared.input, padding: '0.35rem 0.6rem', width: 'auto' }}
-                          value={wo.status}
-                          onChange={e => handleStatusChange(wo.work_order_id, e.target.value)}
-                        >
-                          <option value="open">Open</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="waiting_parts">Waiting Parts</option>
-                          <option value="completed">Completed</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                      </td>
+                      {/* ✅ Status dropdown only for admin/receptionist */}
+                      {canEdit && (
+                        <td style={shared.td} onClick={e => e.stopPropagation()}>
+                          <select
+                            style={{ ...shared.input, padding: '0.35rem 0.6rem', width: 'auto' }}
+                            value={wo.status}
+                            onChange={e => handleStatusChange(wo.work_order_id, e.target.value)}
+                          >
+                            <option value="open">Open</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="waiting_parts">Waiting Parts</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -410,7 +402,7 @@ export default function WorkOrdersPage() {
                   </div>
                 )}
 
-                {/* ── Mechanics Summary (computed from services) ── */}
+                {/* Mechanics Summary */}
                 <Section title="👨‍🔧 Mechanics">
                   {detail.services?.length === 0 ? (
                     <p style={styles.subEmpty}>Add services to see mechanic assignments</p>
@@ -426,7 +418,7 @@ export default function WorkOrdersPage() {
                   )}
                 </Section>
 
-                {/* ── Services ── */}
+                {/* Services */}
                 <Section title="🔧 Services">
                   {detail.services?.length === 0 && (
                     <p style={styles.subEmpty}>No services added yet</p>
@@ -441,13 +433,15 @@ export default function WorkOrdersPage() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <span style={{ fontWeight: '700' }}>${parseFloat(s.price_at_time).toFixed(2)}</span>
-                        {!['completed', 'cancelled'].includes(detail.status) && (
+                        {/* ✅ Remove buttons only for admin/receptionist */}
+                        {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
                           <button style={styles.removeBtn} onClick={() => handleRemoveService(s.id)}>✕</button>
                         )}
                       </div>
                     </div>
                   ))}
-                  {!['completed', 'cancelled'].includes(detail.status) && (
+                  {/* ✅ Add-service form only for admin/receptionist */}
+                  {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
                     <form onSubmit={handleAddService} style={{ ...styles.subForm, flexWrap: 'wrap' }}>
                       <select
                         style={{ ...shared.input, flex: 2, minWidth: '140px' }}
@@ -492,7 +486,7 @@ export default function WorkOrdersPage() {
                   )}
                 </Section>
 
-                {/* ── Parts ── */}
+                {/* Parts */}
                 <Section title="🔩 Parts Used">
                   {detail.parts?.length === 0 && (
                     <p style={styles.subEmpty}>No parts added yet</p>
@@ -509,13 +503,13 @@ export default function WorkOrdersPage() {
                         <span style={{ fontWeight: '700' }}>
                           ${(parseFloat(p.price_at_time) * p.quantity).toFixed(2)}
                         </span>
-                        {!['completed', 'cancelled'].includes(detail.status) && (
+                        {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
                           <button style={styles.removeBtn} onClick={() => handleRemovePart(p.id)}>✕</button>
                         )}
                       </div>
                     </div>
                   ))}
-                  {!['completed', 'cancelled'].includes(detail.status) && (
+                  {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
                     <form onSubmit={handleAddPart} style={{ ...styles.subForm, flexWrap: 'wrap' }}>
                       <select
                         style={{ ...shared.input, flex: 2, minWidth: '140px' }}
@@ -556,7 +550,7 @@ export default function WorkOrdersPage() {
                   )}
                 </Section>
 
-                {/* ── Totals ── */}
+                {/* Totals */}
                 {(detail.services?.length > 0 || detail.parts?.length > 0) && (
                   <div style={styles.totals}>
                     <TotalRow
