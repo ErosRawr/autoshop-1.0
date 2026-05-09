@@ -3,6 +3,7 @@ import api from '../api'
 import Layout from '../components/Layout'
 import { shared } from '../styles/shared'
 import { useLocation } from '../context/LocationContext'
+import { useAuth } from '../context/AuthContext' // Added this import
 
 export default function InventoryPage() {
   const [stock, setStock]       = useState([])
@@ -12,7 +13,7 @@ export default function InventoryPage() {
   const [saving, setSaving]     = useState(false)
   const [form, setForm]         = useState({ part_id: '', quantity: '', notes: '' })
   const { currentLocation }     = useLocation()
-  const { user } = useAuth()
+  const { user } = useAuth() // Now defined correctly
   const LOCATION_ID = user?.location_id
 
   useEffect(() => {

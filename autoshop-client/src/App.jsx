@@ -10,6 +10,7 @@ import WorkOrdersPage  from './pages/WorkOrdersPage'
 import InvoicesPage    from './pages/InvoicesPage'
 import InventoryPage   from './pages/InventoryPage'
 import LocationsPage from './pages/LocationsPage'
+import SuppliersPage from './pages/SuppliersPage'
 
 /**
  * Basic authentication guard
@@ -83,6 +84,12 @@ function AppRoutes() {
           <RoleRoute roles={['admin', 'receptionist']}>
             <InventoryPage />
           </RoleRoute>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/suppliers" element={
+        <ProtectedRoute>
+          <SuppliersPage />
         </ProtectedRoute>
       } />
 

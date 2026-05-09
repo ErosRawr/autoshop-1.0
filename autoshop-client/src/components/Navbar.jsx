@@ -11,6 +11,7 @@ const ALL_LINKS = [
   { to: '/inventory',  label: 'Inventory',   roles: ['admin', 'receptionist'] },
   { to: '/invoices',   label: 'Invoices',    roles: ['admin', 'receptionist'] },
   { to: '/locations',  label: 'Locations',   roles: ['admin'] },
+  { to: '/suppliers', label: 'Suppliers',   roles: ['admin'] },
 ]
 
 export default function Navbar() {
