@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom' // Added
 import api from '../api'
 import Layout     from '../components/Layout'
 import SearchBar  from '../components/SearchBar'
@@ -45,7 +46,7 @@ export default function WorkOrdersPage() {
   const [serviceForm, setServiceForm]   = useState({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
   const [partForm, setPartForm]         = useState({ part_id: '', quantity: '1', price_at_time: '', cost_price_at_time: '' })
 
-  // ✅ All hooks called inside the component, never at module level
+  const navigate = useNavigate() // Added
   const { toggle, sort, indicator } = useSort('created_at', 'desc')
   const { currentLocation }         = useLocation()
   const canEdit                     = useRole('admin', 'receptionist')
@@ -75,6 +76,18 @@ export default function WorkOrdersPage() {
       setParts(pRes.data)
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
+  }
+
+  // Added Invoice Generation Handler
+  async function handleGenerateInvoice() {
+    try {
+      await api.post(`/invoices/generate/${detail.work_order_id}`, {
+        iva_rate: 0.16
+      })
+      navigate('/invoices')
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to generate invoice')
+    }
   }
 
   async function openDetail(wo) {
@@ -229,7 +242,6 @@ export default function WorkOrdersPage() {
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          {/* ✅ useRole gates the button — mechanic never sees it */}
           {canEdit && (
             <>
               {showForm && <button style={shared.btnGhost} onClick={() => setShowForm(false)}>Cancel</button>}
@@ -239,7 +251,6 @@ export default function WorkOrdersPage() {
         </div>
       </div>
 
-      {/* New WO Form — only rendered when canEdit is true */}
       {canEdit && showForm && (
         <div style={{ ...shared.card, marginBottom: '1.5rem' }}>
           <h3 style={styles.sectionTitle}>New Work Order</h3>
@@ -290,10 +301,8 @@ export default function WorkOrdersPage() {
         </div>
       )}
 
-      {/* Split view */}
       <div style={selected ? styles.splitView : {}}>
 
-        {/* Table */}
         <div>
           <TableMeta total={workOrders.length} showing={filtered.length} label="work orders" />
           {filtered.length === 0 ? (
@@ -340,7 +349,6 @@ export default function WorkOrdersPage() {
                       <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>
                         {new Date(wo.created_at).toLocaleDateString()}
                       </td>
-                      {/* ✅ Status dropdown only for admin/receptionist */}
                       {canEdit && (
                         <td style={shared.td} onClick={e => e.stopPropagation()}>
                           <select
@@ -364,7 +372,6 @@ export default function WorkOrdersPage() {
           )}
         </div>
 
-        {/* Detail Panel */}
         {selected && (
           <div style={styles.detailPanel}>
             <div style={styles.detailHeader}>
@@ -379,7 +386,6 @@ export default function WorkOrdersPage() {
               <p style={shared.empty}>Loading details...</p>
             ) : (
               <>
-                {/* Info grid */}
                 <div style={styles.infoGrid}>
                   <InfoBlock label="Status">
                     <span style={STATUS_BADGE[detail.status]}>{detail.status.replace(/_/g, ' ')}</span>
@@ -402,7 +408,6 @@ export default function WorkOrdersPage() {
                   </div>
                 )}
 
-                {/* Mechanics Summary */}
                 <Section title="👨‍🔧 Mechanics">
                   {detail.services?.length === 0 ? (
                     <p style={styles.subEmpty}>Add services to see mechanic assignments</p>
@@ -418,7 +423,6 @@ export default function WorkOrdersPage() {
                   )}
                 </Section>
 
-                {/* Services */}
                 <Section title="🔧 Services">
                   {detail.services?.length === 0 && (
                     <p style={styles.subEmpty}>No services added yet</p>
@@ -433,14 +437,12 @@ export default function WorkOrdersPage() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <span style={{ fontWeight: '700' }}>${parseFloat(s.price_at_time).toFixed(2)}</span>
-                        {/* ✅ Remove buttons only for admin/receptionist */}
                         {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
                           <button style={styles.removeBtn} onClick={() => handleRemoveService(s.id)}>✕</button>
                         )}
                       </div>
                     </div>
                   ))}
-                  {/* ✅ Add-service form only for admin/receptionist */}
                   {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
                     <form onSubmit={handleAddService} style={{ ...styles.subForm, flexWrap: 'wrap' }}>
                       <select
@@ -486,7 +488,6 @@ export default function WorkOrdersPage() {
                   )}
                 </Section>
 
-                {/* Parts */}
                 <Section title="🔩 Parts Used">
                   {detail.parts?.length === 0 && (
                     <p style={styles.subEmpty}>No parts added yet</p>
@@ -549,6 +550,15 @@ export default function WorkOrdersPage() {
                     </form>
                   )}
                 </Section>
+
+                {/* Generate Invoice Button Section */}
+                {detail.status === 'completed' && !selected?.has_invoice && (
+                  <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)' }}>
+                    <button style={shared.btnPrimary} onClick={handleGenerateInvoice}>
+                      🧾 Generate Invoice
+                    </button>
+                  </div>
+                )}
 
                 {/* Totals */}
                 {(detail.services?.length > 0 || detail.parts?.length > 0) && (
