@@ -1,4 +1,4 @@
-import { Link, useLocation as useRouterLocation } from 'react-router-dom'
+import { Link, useLocation as useRouterLocation, useNavigate } from 'react-router-dom' // Added useNavigate
 import { useAuth }     from '../context/AuthContext'
 import { useTheme }    from '../context/ThemeContext'
 import { useLocation } from '../context/LocationContext'
@@ -18,20 +18,23 @@ export default function Navbar() {
   const { theme, toggleTheme }         = useTheme()
   const { locations, currentLocation, switchLocation } = useLocation()
   const routerLocation                 = useRouterLocation()
+  const navigate                       = useNavigate() // Added
 
-  // Filter links based on the current user's role — done INSIDE the component
-  // so useAuth() has already run and user is available
   const links = ALL_LINKS.filter(l => l.roles.includes(user?.role))
+
+  // Added handleLogout function
+  function handleLogout() {
+    logout()
+    navigate('/login')
+  }
 
   return (
     <nav style={styles.nav}>
-      {/* Brand */}
       <div style={styles.brand}>
         <span style={styles.brandIcon}>⚙️</span>
         <span style={styles.brandText}>AutoShop</span>
       </div>
 
-      {/* Links */}
       <div style={styles.links}>
         {links.map(link => {
           const active = routerLocation.pathname === link.to
@@ -48,10 +51,7 @@ export default function Navbar() {
         })}
       </div>
 
-      {/* Actions */}
       <div style={styles.actions}>
-
-        {/* Location Switcher — hidden for mechanics */}
         {user?.role == 'admin' && (
           <div style={styles.locationSwitcher}>
             <span style={styles.locationPin}>📍</span>
@@ -74,7 +74,6 @@ export default function Navbar() {
           {theme === 'dark' ? '🌙' : '☀️'}
         </button>
 
-        {/* User Info */}
         <div style={styles.userInfo}>
           <div style={styles.avatar}>
             {user?.name?.charAt(0).toUpperCase() || 'U'}
@@ -82,7 +81,8 @@ export default function Navbar() {
           <div style={styles.userText}>
             <span style={styles.userName}>{user?.name || 'User'}</span>
             <span style={styles.userRole}>{user?.role}</span>
-            <button style={styles.logoutBtn} onClick={logout}>Logout</button>
+            {/* Updated onClick to use handleLogout */}
+            <button style={styles.logoutBtn} onClick={handleLogout}>Logout</button>
           </div>
         </div>
       </div>

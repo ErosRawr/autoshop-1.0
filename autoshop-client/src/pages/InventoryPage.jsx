@@ -12,6 +12,8 @@ export default function InventoryPage() {
   const [saving, setSaving]     = useState(false)
   const [form, setForm]         = useState({ part_id: '', quantity: '', notes: '' })
   const { currentLocation }     = useLocation()
+  const { user } = useAuth()
+  const LOCATION_ID = user?.location_id
 
   useEffect(() => {
     if (currentLocation) fetchAll()

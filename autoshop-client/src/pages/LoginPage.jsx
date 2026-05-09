@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom' // Added
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import api from '../api'
@@ -6,6 +7,7 @@ import api from '../api'
 export default function LoginPage() {
   const { login } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const navigate = useNavigate() // Added
   const [form, setForm]       = useState({ username: '', password: '' })
   const [error, setError]     = useState(null)
   const [loading, setLoading] = useState(false)
@@ -22,6 +24,7 @@ export default function LoginPage() {
     try {
       const res = await api.post('/auth/login', form)
       login(res.data.user, res.data.token)
+      navigate('/') // Added SPA navigation
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed')
     } finally {
@@ -30,7 +33,6 @@ export default function LoginPage() {
   }
 
   return (
-    
     <div style={styles.wrapper}>
       <button
         onClick={toggleTheme}
