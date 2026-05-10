@@ -89,10 +89,12 @@ async function getAll(req, res) {
         i.status, i.date, i.payment_method,
         c.name  AS customer_name,
         wo.work_order_id,
+        v.make, v.model, v.year, v.plate,
         l.name  AS location_name
       FROM invoices i
       JOIN customers c ON c.customer_id = i.customer_id
       JOIN work_orders wo ON wo.work_order_id = i.work_order_id
+      JOIN vehicles v ON v.vehicle_id = wo.vehicle_id
       JOIN locations l ON l.location_id = wo.location_id
       WHERE 1=1
     `
@@ -120,9 +122,17 @@ async function getOne(req, res) {
   const { id } = req.params
   try {
     const invoiceResult = await pool.query(
-      `SELECT i.*, c.name AS customer_name, c.phone AS customer_phone, c.rfc, c.business_name
+      `SELECT 
+        i.*, 
+        c.name AS customer_name, c.phone AS customer_phone, c.rfc, c.business_name, c.fiscal_address,
+        wo.work_order_id, wo.problem_description,
+        v.make, v.model, v.year, v.plate,
+        l.name AS location_name
        FROM invoices i
        JOIN customers c ON c.customer_id = i.customer_id
+       JOIN work_orders wo ON wo.work_order_id = i.work_order_id
+       JOIN vehicles v ON v.vehicle_id = wo.vehicle_id
+       JOIN locations l ON l.location_id = wo.location_id
        WHERE i.invoice_id = $1`,
       [id]
     )
@@ -131,14 +141,16 @@ async function getOne(req, res) {
     }
 
     const services = await pool.query(
-      `SELECT wos.*, s.name FROM workorder_services wos
+      `SELECT wos.hours, wos.price_at_time, s.name AS service_name 
+       FROM workorder_services wos
        JOIN services s ON s.service_id = wos.service_id
        WHERE wos.work_order_id = $1`,
       [invoiceResult.rows[0].work_order_id]
     )
 
     const parts = await pool.query(
-      `SELECT wop.*, p.name, p.part_number FROM workorder_parts wop
+      `SELECT wop.quantity, wop.price_at_time, p.name AS part_name, p.part_number 
+       FROM workorder_parts wop
        JOIN parts p ON p.part_id = wop.part_id
        WHERE wop.work_order_id = $1`,
       [invoiceResult.rows[0].work_order_id]
