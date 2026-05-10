@@ -5,7 +5,6 @@ const pool = require('../db/pool')
 async function getAll(req, res) {
   const { location_id, status } = req.query
 
-  // Mechanics and receptionists are always scoped to their own location
   const scopedLocation = req.user.role === 'admin'
     ? location_id
     : req.user.location_id
@@ -18,7 +17,8 @@ async function getAll(req, res) {
         c.name  AS customer_name,
         v.make, v.model, v.year, v.plate,
         l.name  AS location_name,
-        u.name  AS created_by_name
+        u.name  AS created_by_name,
+        EXISTS (SELECT 1 FROM invoices i WHERE i.work_order_id = wo.work_order_id) AS has_invoice
       FROM work_orders wo
       JOIN customers c ON c.customer_id = wo.customer_id
       JOIN vehicles  v ON v.vehicle_id  = wo.vehicle_id
@@ -57,7 +57,8 @@ async function getOne(req, res) {
         c.name  AS customer_name, c.phone AS customer_phone,
         v.make, v.model, v.year, v.plate, v.color,
         l.name  AS location_name,
-        u.name  AS created_by_name
+        u.name  AS created_by_name,
+        EXISTS (SELECT 1 FROM invoices i WHERE i.work_order_id = wo.work_order_id) AS has_invoice
        FROM work_orders wo
        JOIN customers c ON c.customer_id = wo.customer_id
        JOIN vehicles  v ON v.vehicle_id  = wo.vehicle_id
@@ -70,7 +71,6 @@ async function getOne(req, res) {
       return res.status(404).json({ message: 'Work order not found' })
     }
 
-    // Non-admins can only view work orders from their own location
     const wo = woResult.rows[0]
     if (req.user.role !== 'admin' &&
         parseInt(wo.location_id) !== parseInt(req.user.location_id)) {
@@ -105,11 +105,19 @@ async function getOne(req, res) {
       [id]
     )
 
+    const invoiceResult = await pool.query(
+      `SELECT invoice_id, folio, status, total
+       FROM invoices
+       WHERE work_order_id = $1`,
+      [id]
+    )
+
     res.json({
-      ...woResult.rows[0],
+      ...wo,
       services:  servicesResult.rows,
       parts:     partsResult.rows,
       mechanics: mechanicsResult.rows,
+      invoice:   invoiceResult.rows[0] || null,
     })
   } catch (err) {
     console.error(err)
@@ -129,7 +137,6 @@ async function create(req, res) {
     return res.status(400).json({ message: 'customer_id and vehicle_id are required' })
   }
 
-  // Always use the location from the token — never trust the client to send it
   const location_id = req.user.location_id
 
   try {
@@ -170,7 +177,6 @@ async function updateStatus(req, res) {
   }
 
   try {
-    // Verify the work order belongs to the user's location before updating
     const check = await pool.query(
       'SELECT location_id FROM work_orders WHERE work_order_id = $1',
       [id]
@@ -210,7 +216,6 @@ async function addService(req, res) {
   }
 
   try {
-    // Verify location ownership before mutating
     const check = await pool.query(
       'SELECT location_id FROM work_orders WHERE work_order_id = $1',
       [id]

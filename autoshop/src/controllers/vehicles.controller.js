@@ -98,4 +98,20 @@ async function update(req, res) {
   }
 }
 
-module.exports = { getAll, getOne, create, update }
+// Added the missing remove function
+async function remove(req, res) {
+  const { id } = req.params
+  try {
+    const result = await pool.query('DELETE FROM vehicles WHERE vehicle_id = $1 RETURNING *', [id])
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Vehicle not found' })
+    }
+    res.json({ message: 'Vehicle deleted successfully' })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Server error' })
+  }
+}
+
+// Added remove to exports
+module.exports = { getAll, getOne, create, update, remove }

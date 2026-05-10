@@ -89,53 +89,14 @@ function validateWorkOrder(body) {
   if (body.priority && !isInEnum(body.priority, validPriorities)) {
     return `priority must be one of: ${validPriorities.join(', ')}`
   }
-  if (body.mileage && !isNonNegativeInteger(body.mileage)) {
-    return 'mileage must be a non-negative integer'
-  }
-  if (body.fuel_level !== undefined && body.fuel_level !== null) {
-    const fl = parseInt(body.fuel_level, 10)
-    if (isNaN(fl) || fl < 0 || fl > 100) {
-      return 'fuel_level must be between 0 and 100'
-    }
-  }
   return null
 }
 
 function validatePart(body) {
   const required = requireFields(body, ['name', 'cost_price', 'sale_price'])
   if (required) return required
-
-  if (!isPositiveNumber(body.cost_price)) {
-    return 'cost_price must be a positive number'
-  }
-  if (!isPositiveNumber(body.sale_price)) {
-    return 'sale_price must be a positive number'
-  }
-  return null
-}
-
-function validateService(body) {
-  const required = requireFields(body, ['name', 'base_price'])
-  if (required) return required
-
-  if (!isPositiveNumber(body.base_price)) {
-    return 'base_price must be a positive number'
-  }
-
-  const validCategories = ['maintenance', 'repair', 'diagnostic', 'electrical', 'bodywork', 'other']
-  if (body.category && !isInEnum(body.category, validCategories)) {
-    return `category must be one of: ${validCategories.join(', ')}`
-  }
-  return null
-}
-
-function validateInventoryReceive(body) {
-  const required = requireFields(body, ['location_id', 'part_id', 'quantity'])
-  if (required) return required
-
-  if (!isPositiveInteger(body.quantity)) {
-    return 'quantity must be a positive whole number'
-  }
+  if (!isPositiveNumber(body.cost_price)) return 'cost_price must be positive'
+  if (!isPositiveNumber(body.sale_price)) return 'sale_price must be positive'
   return null
 }
 
@@ -165,10 +126,12 @@ function validateInvoiceGenerate(body) {
 }
 
 // ── Express middleware factory ────────────────────────────────
-// Usage: router.post('/', validate(validateCustomer), ctrl.create)
 
 function validate(validatorFn) {
   return (req, res, next) => {
+    // FIX: Ensure req.body is at least an empty object before validation
+    if (!req.body) req.body = {};
+
     const error = validatorFn(req.body)
     if (error) {
       return res.status(400).json({ message: error })
@@ -183,16 +146,6 @@ module.exports = {
   validateVehicle,
   validateWorkOrder,
   validatePart,
-  validateService,
-  validateInventoryReceive,
   validatePayment,
-  validateInvoiceGenerate,
-  // Primitives exported for one-off use in controllers
-  isPresent,
-  isPositiveNumber,
-  isPositiveInteger,
-  isNonNegativeInteger,
-  isValidEmail,
-  isValidYear,
-  isInEnum,
-}
+  validateInvoiceGenerate
+} 

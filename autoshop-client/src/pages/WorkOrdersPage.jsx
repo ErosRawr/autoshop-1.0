@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom' // Added
+import { useNavigate } from 'react-router-dom'
 import api from '../api'
 import Layout     from '../components/Layout'
 import SearchBar  from '../components/SearchBar'
@@ -35,9 +35,10 @@ export default function WorkOrdersPage() {
   const [loading, setLoading]       = useState(true)
   const [showForm, setShowForm]     = useState(false)
   const [saving, setSaving]         = useState(false)
+  const [generatingInvoice, setGeneratingInvoice] = useState(false)
   const [selected, setSelected]     = useState(null)
   const [form, setForm]             = useState({
-    location_id: '', customer_id: '', vehicle_id: '',
+    customer_id: '', vehicle_id: '',
     priority: 'normal', mileage: '', problem_description: ''
   })
   const [detail, setDetail]             = useState(null)
@@ -46,16 +47,13 @@ export default function WorkOrdersPage() {
   const [serviceForm, setServiceForm]   = useState({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
   const [partForm, setPartForm]         = useState({ part_id: '', quantity: '1', price_at_time: '', cost_price_at_time: '' })
 
-  const navigate = useNavigate() // Added
   const { toggle, sort, indicator } = useSort('created_at', 'desc')
   const { currentLocation }         = useLocation()
   const canEdit                     = useRole('admin', 'receptionist')
+  const navigate                    = useNavigate()
 
   useEffect(() => {
-    if (currentLocation) {
-      setForm(f => ({ ...f, location_id: String(currentLocation.location_id) }))
-      fetchAll()
-    }
+    if (currentLocation) fetchAll()
   }, [currentLocation])
 
   async function fetchAll() {
@@ -64,7 +62,7 @@ export default function WorkOrdersPage() {
         api.get(`/workorders?location_id=${currentLocation.location_id}`),
         api.get('/customers'),
         api.get('/vehicles'),
-        api.get('/mechanics'),
+        api.get(`/mechanics?location_id=${currentLocation.location_id}`),
         api.get('/services'),
         api.get('/parts'),
       ])
@@ -76,18 +74,6 @@ export default function WorkOrdersPage() {
       setParts(pRes.data)
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
-  }
-
-  // Added Invoice Generation Handler
-  async function handleGenerateInvoice() {
-    try {
-      await api.post(`/invoices/generate/${detail.work_order_id}`, {
-        iva_rate: 0.16
-      })
-      navigate('/invoices')
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to generate invoice')
-    }
   }
 
   async function openDetail(wo) {
@@ -114,8 +100,8 @@ export default function WorkOrdersPage() {
     e.preventDefault()
     setSaving(true)
     try {
-      await api.post('/workorders', { ...form, location_id: currentLocation.location_id })
-      setForm({ location_id: String(currentLocation.location_id), customer_id: '', vehicle_id: '', priority: 'normal', mileage: '', problem_description: '' })
+      await api.post('/workorders', form)
+      setForm({ customer_id: '', vehicle_id: '', priority: 'normal', mileage: '', problem_description: '' })
       setShowForm(false)
       fetchAll()
     } catch (err) {
@@ -131,6 +117,18 @@ export default function WorkOrdersPage() {
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to update status')
     }
+  }
+
+  // Generate invoice then navigate directly to the invoices page
+  async function handleGenerateInvoice() {
+    if (!confirm('Generate invoice for this work order?')) return
+    setGeneratingInvoice(true)
+    try {
+      await api.post(`/invoices/generate/${detail.work_order_id}`)
+      navigate('/invoices')
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to generate invoice')
+    } finally { setGeneratingInvoice(false) }
   }
 
   async function handleAddService(e) {
@@ -302,7 +300,7 @@ export default function WorkOrdersPage() {
       )}
 
       <div style={selected ? styles.splitView : {}}>
-
+        {/* Table */}
         <div>
           <TableMeta total={workOrders.length} showing={filtered.length} label="work orders" />
           {filtered.length === 0 ? (
@@ -372,6 +370,7 @@ export default function WorkOrdersPage() {
           )}
         </div>
 
+        {/* Detail Panel */}
         {selected && (
           <div style={styles.detailPanel}>
             <div style={styles.detailHeader}>
@@ -408,6 +407,44 @@ export default function WorkOrdersPage() {
                   </div>
                 )}
 
+                {/* ── Invoice block ── */}
+                {/* Only shown for admin/receptionist on completed work orders */}
+                {canEdit && detail.status === 'completed' && (
+                  <div style={styles.invoiceBlock}>
+                    {detail.invoice ? (
+                      // Invoice already exists — show its info and a link
+                      <div style={styles.invoiceExists}>
+                        <div>
+                          <p style={styles.invoiceLabel}>Invoice generated</p>
+                          <p style={styles.invoiceFolio}>{detail.invoice.folio}</p>
+                          <span style={{
+                            ...shared.badge,
+                            ...(detail.invoice.status === 'paid' ? shared.badgeGreen : shared.badgeYellow)
+                          }}>
+                            {detail.invoice.status.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <button
+                          style={shared.btnGhost}
+                          onClick={() => navigate('/invoices')}
+                        >
+                          View Invoice →
+                        </button>
+                      </div>
+                    ) : (
+                      // No invoice yet — show the generate button
+                      <button
+                        style={{ ...shared.btnPrimary, width: '100%', justifyContent: 'center' }}
+                        onClick={handleGenerateInvoice}
+                        disabled={generatingInvoice}
+                      >
+                        {generatingInvoice ? 'Generating...' : '🧾 Generate Invoice'}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Mechanics Summary */}
                 <Section title="👨‍🔧 Mechanics">
                   {detail.services?.length === 0 ? (
                     <p style={styles.subEmpty}>Add services to see mechanic assignments</p>
@@ -423,6 +460,7 @@ export default function WorkOrdersPage() {
                   )}
                 </Section>
 
+                {/* Services */}
                 <Section title="🔧 Services">
                   {detail.services?.length === 0 && (
                     <p style={styles.subEmpty}>No services added yet</p>
@@ -445,49 +483,26 @@ export default function WorkOrdersPage() {
                   ))}
                   {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
                     <form onSubmit={handleAddService} style={{ ...styles.subForm, flexWrap: 'wrap' }}>
-                      <select
-                        style={{ ...shared.input, flex: 2, minWidth: '140px' }}
-                        value={serviceForm.service_id}
-                        onChange={handleServiceSelect}
-                        required
-                      >
+                      <select style={{ ...shared.input, flex: 2, minWidth: '140px' }} value={serviceForm.service_id} onChange={handleServiceSelect} required>
                         <option value="">Select service</option>
                         {services.filter(s => s.is_active).map(s => (
-                          <option key={s.service_id} value={s.service_id}>
-                            {s.name} — ${s.base_price}
-                          </option>
+                          <option key={s.service_id} value={s.service_id}>{s.name} — ${s.base_price}</option>
                         ))}
                       </select>
-                      <select
-                        style={{ ...shared.input, flex: 2, minWidth: '140px' }}
-                        value={serviceForm.mechanic_id}
-                        onChange={e => setServiceForm({ ...serviceForm, mechanic_id: e.target.value })}
-                        required
-                      >
+                      <select style={{ ...shared.input, flex: 2, minWidth: '140px' }} value={serviceForm.mechanic_id} onChange={e => setServiceForm({ ...serviceForm, mechanic_id: e.target.value })} required>
                         <option value="">Mechanic</option>
                         {mechanics.map(m => (
                           <option key={m.mechanic_id} value={m.mechanic_id}>{m.name}</option>
                         ))}
                       </select>
-                      <input
-                        style={{ ...shared.input, width: '70px' }}
-                        type="number" placeholder="Hrs" min="0.5" step="0.5"
-                        value={serviceForm.hours}
-                        onChange={e => setServiceForm({ ...serviceForm, hours: e.target.value })}
-                        required
-                      />
-                      <input
-                        style={{ ...shared.input, width: '90px' }}
-                        type="number" placeholder="Price $"
-                        value={serviceForm.price_at_time}
-                        onChange={e => setServiceForm({ ...serviceForm, price_at_time: e.target.value })}
-                        required
-                      />
+                      <input style={{ ...shared.input, width: '70px' }} type="number" placeholder="Hrs" min="0.5" step="0.5" value={serviceForm.hours} onChange={e => setServiceForm({ ...serviceForm, hours: e.target.value })} required />
+                      <input style={{ ...shared.input, width: '90px' }} type="number" placeholder="Price $" value={serviceForm.price_at_time} onChange={e => setServiceForm({ ...serviceForm, price_at_time: e.target.value })} required />
                       <button style={shared.btnSuccess} type="submit">Add</button>
                     </form>
                   )}
                 </Section>
 
+                {/* Parts */}
                 <Section title="🔩 Parts Used">
                   {detail.parts?.length === 0 && (
                     <p style={styles.subEmpty}>No parts added yet</p>
@@ -501,9 +516,7 @@ export default function WorkOrdersPage() {
                         </p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <span style={{ fontWeight: '700' }}>
-                          ${(parseFloat(p.price_at_time) * p.quantity).toFixed(2)}
-                        </span>
+                        <span style={{ fontWeight: '700' }}>${(parseFloat(p.price_at_time) * p.quantity).toFixed(2)}</span>
                         {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
                           <button style={styles.removeBtn} onClick={() => handleRemovePart(p.id)}>✕</button>
                         )}
@@ -512,73 +525,31 @@ export default function WorkOrdersPage() {
                   ))}
                   {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
                     <form onSubmit={handleAddPart} style={{ ...styles.subForm, flexWrap: 'wrap' }}>
-                      <select
-                        style={{ ...shared.input, flex: 2, minWidth: '140px' }}
-                        value={partForm.part_id}
-                        onChange={handlePartSelect}
-                        required
-                      >
+                      <select style={{ ...shared.input, flex: 2, minWidth: '140px' }} value={partForm.part_id} onChange={handlePartSelect} required>
                         <option value="">Select part</option>
                         {parts.map(p => (
-                          <option key={p.part_id} value={p.part_id}>
-                            {p.name} {p.part_number ? `(${p.part_number})` : ''}
-                          </option>
+                          <option key={p.part_id} value={p.part_id}>{p.name} {p.part_number ? `(${p.part_number})` : ''}</option>
                         ))}
                       </select>
-                      <input
-                        style={{ ...shared.input, width: '60px' }}
-                        type="number" placeholder="Qty" min="1"
-                        value={partForm.quantity}
-                        onChange={e => setPartForm({ ...partForm, quantity: e.target.value })}
-                        required
-                      />
-                      <input
-                        style={{ ...shared.input, width: '80px' }}
-                        type="number" placeholder="Sale $"
-                        value={partForm.price_at_time}
-                        onChange={e => setPartForm({ ...partForm, price_at_time: e.target.value })}
-                        required
-                      />
-                      <input
-                        style={{ ...shared.input, width: '80px' }}
-                        type="number" placeholder="Cost $"
-                        value={partForm.cost_price_at_time}
-                        onChange={e => setPartForm({ ...partForm, cost_price_at_time: e.target.value })}
-                        required
-                      />
+                      <input style={{ ...shared.input, width: '60px' }} type="number" placeholder="Qty" min="1" value={partForm.quantity} onChange={e => setPartForm({ ...partForm, quantity: e.target.value })} required />
+                      <input style={{ ...shared.input, width: '80px' }} type="number" placeholder="Sale $" value={partForm.price_at_time} onChange={e => setPartForm({ ...partForm, price_at_time: e.target.value })} required />
+                      <input style={{ ...shared.input, width: '80px' }} type="number" placeholder="Cost $" value={partForm.cost_price_at_time} onChange={e => setPartForm({ ...partForm, cost_price_at_time: e.target.value })} required />
                       <button style={shared.btnSuccess} type="submit">Add</button>
                     </form>
                   )}
                 </Section>
 
-                {/* Generate Invoice Button Section */}
-                {detail.status === 'completed' && !selected?.has_invoice && (
-                  <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)' }}>
-                    <button style={shared.btnPrimary} onClick={handleGenerateInvoice}>
-                      🧾 Generate Invoice
-                    </button>
-                  </div>
-                )}
-
                 {/* Totals */}
                 {(detail.services?.length > 0 || detail.parts?.length > 0) && (
                   <div style={styles.totals}>
-                    <TotalRow
-                      label="Services"
-                      value={detail.services.reduce((s, x) => s + parseFloat(x.price_at_time) * parseFloat(x.hours), 0)}
-                    />
-                    <TotalRow
-                      label="Parts"
-                      value={detail.parts.reduce((s, x) => s + parseFloat(x.price_at_time) * x.quantity, 0)}
-                    />
+                    <TotalRow label="Services" value={detail.services.reduce((s, x) => s + parseFloat(x.price_at_time) * parseFloat(x.hours), 0)} />
+                    <TotalRow label="Parts"    value={detail.parts.reduce((s, x) => s + parseFloat(x.price_at_time) * x.quantity, 0)} />
                     <div style={styles.totalFinalRow}>
                       <span>Estimated Total</span>
-                      <span>
-                        ${(
-                          detail.services.reduce((s, x) => s + parseFloat(x.price_at_time) * parseFloat(x.hours), 0) +
-                          detail.parts.reduce((s, x)    => s + parseFloat(x.price_at_time) * x.quantity, 0)
-                        ).toFixed(2)}
-                      </span>
+                      <span>${(
+                        detail.services.reduce((s, x) => s + parseFloat(x.price_at_time) * parseFloat(x.hours), 0) +
+                        detail.parts.reduce((s, x) => s + parseFloat(x.price_at_time) * x.quantity, 0)
+                      ).toFixed(2)}</span>
                     </div>
                   </div>
                 )}
@@ -629,6 +600,11 @@ const styles = {
   infoGrid:      { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' },
   descBlock:     { backgroundColor: 'var(--bg-table-head)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '0.5rem' },
   descText:      { fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.5 },
+  // Invoice block sits between the info grid and the sections
+  invoiceBlock:  { margin: '0.75rem 0', padding: '0.75rem', backgroundColor: 'var(--bg-table-head)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' },
+  invoiceExists: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' },
+  invoiceLabel:  { fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.2rem' },
+  invoiceFolio:  { fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '0.25rem' },
   lineItem:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' },
   subForm:       { display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem' },
   subEmpty:      { color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic', padding: '0.5rem 0' },
