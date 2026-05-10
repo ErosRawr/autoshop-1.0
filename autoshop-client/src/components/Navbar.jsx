@@ -1,14 +1,14 @@
-import { Link, useLocation as useRouterLocation, useNavigate } from 'react-router-dom' // Added useNavigate
+import { Link, useLocation as useRouterLocation, useNavigate } from 'react-router-dom' 
 import { useAuth }     from '../context/AuthContext'
 import { useTheme }    from '../context/ThemeContext'
 import { useLocation } from '../context/LocationContext'
 
 const ALL_LINKS = [
-  { to: '/',           label: 'Dashboard',   roles: ['admin'] },
+  { to: '/',           label: 'Dashboard',   roles: ['admin', 'receptionist', 'mechanic'] },
   { to: '/customers',  label: 'Customers',   roles: ['admin', 'receptionist'] },
   { to: '/vehicles',   label: 'Vehicles',    roles: ['admin', 'receptionist'] },
   { to: '/workorders', label: 'Work Orders', roles: ['admin', 'receptionist', 'mechanic'] },
-  { to: '/inventory',  label: 'Inventory',   roles: ['admin', 'receptionist'] },
+  { to: '/inventory',  label: 'Inventory',   roles: ['admin', 'receptionist', 'mechanic'] },
   { to: '/invoices',   label: 'Invoices',    roles: ['admin', 'receptionist'] },
   { to: '/locations',  label: 'Locations',   roles: ['admin'] },
   { to: '/suppliers', label: 'Suppliers',   roles: ['admin'] },
@@ -22,11 +22,11 @@ export default function Navbar() {
   const { theme, toggleTheme }         = useTheme()
   const { locations, currentLocation, switchLocation } = useLocation()
   const routerLocation                 = useRouterLocation()
-  const navigate                       = useNavigate() // Added
+  const navigate                       = useNavigate()
 
-  const links = ALL_LINKS.filter(l => l.roles.includes(user?.role))
+  // Filter links based on the user's role
+  const links = ALL_LINKS.filter(link => link.roles.includes(user?.role))
 
-  // Added handleLogout function
   function handleLogout() {
     logout()
     navigate('/login')
@@ -85,7 +85,6 @@ export default function Navbar() {
           <div style={styles.userText}>
             <span style={styles.userName}>{user?.name || 'User'}</span>
             <span style={styles.userRole}>{user?.role}</span>
-            {/* Updated onClick to use handleLogout */}
             <button style={styles.logoutBtn} onClick={handleLogout}>Logout</button>
           </div>
         </div>
