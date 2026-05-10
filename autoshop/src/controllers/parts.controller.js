@@ -60,28 +60,46 @@ async function create(req, res) {
   }
 }
 
-// PUT /parts/:id
+// PUT /parts/:id - Fixed COALESCE null-clear bug
 async function update(req, res) {
   const { id } = req.params
-  const { supplier_id, name, description, part_number, cost_price, sale_price } = req.body
 
   try {
+    // 1. Fetch existing record to handle partial updates correctly
+    const existing = await pool.query(
+      'SELECT * FROM parts WHERE part_id = $1', 
+      [id]
+    )
+    
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ message: 'Part not found' })
+    }
+    
+    const current = existing.rows[0]
+
+    // 2. Merge: use incoming value if provided (including null), fall back to current if undefined
+    const supplier_id = req.body.supplier_id !== undefined ? req.body.supplier_id : current.supplier_id
+    const name        = req.body.name        !== undefined ? req.body.name        : current.name
+    const description = req.body.description !== undefined ? req.body.description : current.description
+    const part_number = req.body.part_number !== undefined ? req.body.part_number : current.part_number
+    const cost_price  = req.body.cost_price  !== undefined ? req.body.cost_price  : current.cost_price
+    const sale_price  = req.body.sale_price  !== undefined ? req.body.sale_price  : current.sale_price
+
+    // 3. Execute update with direct assignments
     const result = await pool.query(
       `UPDATE parts
-       SET supplier_id  = COALESCE($1, supplier_id),
-           name         = COALESCE($2, name),
-           description  = COALESCE($3, description),
-           part_number  = COALESCE($4, part_number),
-           cost_price   = COALESCE($5, cost_price),
-           sale_price   = COALESCE($6, sale_price),
+       SET supplier_id  = $1,
+           name         = $2,
+           description  = $3,
+           part_number  = $4,
+           cost_price   = $5,
+           sale_price   = $6,
            updated_at   = now()
        WHERE part_id = $7
        RETURNING *`,
       [supplier_id, name, description, part_number, cost_price, sale_price, id]
     )
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Part not found' })
-    }
+    
     res.json(result.rows[0])
   } catch (err) {
     console.error(err)

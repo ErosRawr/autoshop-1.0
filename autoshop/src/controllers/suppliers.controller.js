@@ -56,27 +56,44 @@ async function create(req, res) {
   }
 }
 
-// PUT /suppliers/:id
+// PUT /suppliers/:id - Fixed COALESCE null-clear bug
 async function update(req, res) {
   const { id } = req.params
-  const { name, contact_name, phone, email, notes } = req.body
 
   try {
+    // 1. Fetch existing record
+    const existing = await pool.query(
+      'SELECT * FROM suppliers WHERE supplier_id = $1',
+      [id]
+    )
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ message: 'Supplier not found' })
+    }
+
+    const current = existing.rows[0]
+
+    // 2. Merge: use incoming value if provided (including null), fall back to current if undefined
+    const name         = req.body.name         !== undefined ? req.body.name         : current.name
+    const contact_name = req.body.contact_name !== undefined ? req.body.contact_name : current.contact_name
+    const phone        = req.body.phone        !== undefined ? req.body.phone        : current.phone
+    const email        = req.body.email        !== undefined ? req.body.email        : current.email
+    const notes        = req.body.notes        !== undefined ? req.body.notes        : current.notes
+
+    // 3. Execute update with direct assignments
     const result = await pool.query(
       `UPDATE suppliers
-       SET name         = COALESCE($1, name),
-           contact_name = COALESCE($2, contact_name),
-           phone        = COALESCE($3, phone),
-           email        = COALESCE($4, email),
-           notes        = COALESCE($5, notes),
+       SET name         = $1,
+           contact_name = $2,
+           phone        = $3,
+           email        = $4,
+           notes        = $5,
            updated_at   = now()
        WHERE supplier_id = $6
        RETURNING *`,
       [name, contact_name, phone, email, notes, id]
     )
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Supplier not found' })
-    }
+
     res.json(result.rows[0])
   } catch (err) {
     console.error(err)
@@ -84,4 +101,4 @@ async function update(req, res) {
   }
 }
 
-module.exports = { getAll, getOne, create, update }
+module.exports = { getAll, getOne, create, update } 

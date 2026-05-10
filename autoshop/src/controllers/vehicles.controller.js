@@ -67,30 +67,50 @@ async function create(req, res) {
   }
 }
 
-// PUT /vehicles/:id
+// PUT /vehicles/:id - Fixed COALESCE null-clear bug
 async function update(req, res) {
   const { id } = req.params
-  const { make, model, year, vin, plate, color, vehicle_type, notes } = req.body
 
   try {
+    // 1. Fetch existing record to handle partial updates correctly
+    const existing = await pool.query(
+      'SELECT * FROM vehicles WHERE vehicle_id = $1', 
+      [id]
+    )
+    
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ message: 'Vehicle not found' })
+    }
+    
+    const current = existing.rows[0]
+
+    // 2. Merge: use incoming value if provided (including null), fall back to current if undefined
+    const make         = req.body.make         !== undefined ? req.body.make         : current.make
+    const model        = req.body.model        !== undefined ? req.body.model        : current.model
+    const year         = req.body.year         !== undefined ? req.body.year         : current.year
+    const vin          = req.body.vin          !== undefined ? req.body.vin          : current.vin
+    const plate        = req.body.plate        !== undefined ? req.body.plate        : current.plate
+    const color        = req.body.color        !== undefined ? req.body.color        : current.color
+    const vehicle_type = req.body.vehicle_type !== undefined ? req.body.vehicle_type : current.vehicle_type
+    const notes        = req.body.notes        !== undefined ? req.body.notes        : current.notes
+
+    // 3. Execute update with direct assignments
     const result = await pool.query(
       `UPDATE vehicles
-       SET make         = COALESCE($1, make),
-           model        = COALESCE($2, model),
-           year         = COALESCE($3, year),
-           vin          = COALESCE($4, vin),
-           plate        = COALESCE($5, plate),
-           color        = COALESCE($6, color),
-           vehicle_type = COALESCE($7, vehicle_type),
-           notes        = COALESCE($8, notes),
+       SET make         = $1,
+           model        = $2,
+           year         = $3,
+           vin          = $4,
+           plate        = $5,
+           color        = $6,
+           vehicle_type = $7,
+           notes        = $8,
            updated_at   = now()
        WHERE vehicle_id = $9
        RETURNING *`,
       [make, model, year, vin, plate, color, vehicle_type, notes, id]
     )
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Vehicle not found' })
-    }
+    
     res.json(result.rows[0])
   } catch (err) {
     console.error(err)
@@ -113,5 +133,4 @@ async function remove(req, res) {
   }
 }
 
-// Added remove to exports
 module.exports = { getAll, getOne, create, update, remove }
