@@ -4,8 +4,10 @@ import Layout from '../components/Layout'
 import SearchBar from '../components/SearchBar'
 import TableMeta from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
+import Toast from '../components/Toast'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
+import { useError } from '../hooks/useError'
 
 export default function PartsPage() {
   const [parts, setParts]         = useState([])
@@ -18,7 +20,9 @@ export default function PartsPage() {
     name: '', part_number: '', description: '',
     supplier_id: '', cost_price: '', sale_price: ''
   })
+  
   const { toggle, sort, indicator } = useSort('name')
+  const { error, success, showError, showSuccess } = useError()
 
   useEffect(() => { fetchAll() }, [])
 
@@ -30,7 +34,10 @@ export default function PartsPage() {
       ])
       setParts(pRes.data)
       setSuppliers(sRes.data)
-    } catch (err) { console.error(err) }
+    } catch (err) { 
+      console.error(err)
+      showError('Failed to fetch parts and suppliers')
+    }
     finally { setLoading(false) }
   }
 
@@ -46,11 +53,12 @@ export default function PartsPage() {
         cost_price:  parseFloat(form.cost_price),
         sale_price:  parseFloat(form.sale_price),
       })
+      showSuccess('Part created successfully')
       setForm({ name: '', part_number: '', description: '', supplier_id: '', cost_price: '', sale_price: '' })
       setShowForm(false)
       fetchAll()
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create part')
+      showError(err.response?.data?.message || 'Failed to create part')
     } finally { setSaving(false) }
   }
 
@@ -70,6 +78,8 @@ export default function PartsPage() {
 
   return (
     <Layout>
+      <Toast error={error} success={success} />
+      
       <div style={shared.pageHeader}>
         <h2 style={shared.pageTitle}>Parts</h2>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>

@@ -5,10 +5,12 @@ import Layout     from '../components/Layout'
 import SearchBar  from '../components/SearchBar'
 import TableMeta  from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
+import Toast      from '../components/Toast'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
 import { useRole } from '../hooks/useRole'
 import { useLocation } from '../context/LocationContext'
+import { useError } from '../hooks/useError'
 
 const STATUS_BADGE = {
   open:          { ...shared.badge, ...shared.badgeBlue   },
@@ -49,6 +51,7 @@ export default function WorkOrdersPage() {
 
   const { toggle, sort, indicator } = useSort('created_at', 'desc')
   const { currentLocation }         = useLocation()
+  const { error, success, showError, showSuccess } = useError()
   const canEdit                     = useRole('admin', 'receptionist')
   const navigate                    = useNavigate()
 
@@ -72,7 +75,10 @@ export default function WorkOrdersPage() {
       setMechanics(mRes.data)
       setServices(sRes.data)
       setParts(pRes.data)
-    } catch (err) { console.error(err) }
+    } catch (err) { 
+      console.error(err)
+      showError('Failed to fetch data')
+    }
     finally { setLoading(false) }
   }
 
@@ -81,14 +87,20 @@ export default function WorkOrdersPage() {
     try {
       const res = await api.get(`/workorders/${wo.work_order_id}`)
       setDetail(res.data)
-    } catch (err) { console.error(err) }
+    } catch (err) { 
+      console.error(err)
+      showError('Failed to load work order details')
+    }
   }
 
   async function refreshDetail(id) {
     try {
       const res = await api.get(`/workorders/${id}`)
       setDetail(res.data)
-    } catch (err) { console.error(err) }
+    } catch (err) { 
+      console.error(err)
+      showError('Failed to refresh details')
+    }
   }
 
   function handleChange(e) { setForm({ ...form, [e.target.name]: e.target.value }) }
@@ -101,33 +113,35 @@ export default function WorkOrdersPage() {
     setSaving(true)
     try {
       await api.post('/workorders', form)
+      showSuccess('Work order opened successfully')
       setForm({ customer_id: '', vehicle_id: '', priority: 'normal', mileage: '', problem_description: '' })
       setShowForm(false)
       fetchAll()
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create work order')
+      showError(err.response?.data?.message || 'Failed to create work order')
     } finally { setSaving(false) }
   }
 
   async function handleStatusChange(id, status) {
     try {
       await api.patch(`/workorders/${id}/status`, { status })
+      showSuccess('Status updated')
       fetchAll()
       if (selected?.work_order_id === id) refreshDetail(id)
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update status')
+      showError(err.response?.data?.message || 'Failed to update status')
     }
   }
 
-  // Generate invoice then navigate directly to the invoices page
   async function handleGenerateInvoice() {
     if (!confirm('Generate invoice for this work order?')) return
     setGeneratingInvoice(true)
     try {
       await api.post(`/invoices/generate/${detail.work_order_id}`)
+      showSuccess('Invoice generated successfully')
       navigate('/invoices')
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to generate invoice')
+      showError(err.response?.data?.message || 'Failed to generate invoice')
     } finally { setGeneratingInvoice(false) }
   }
 
@@ -140,10 +154,11 @@ export default function WorkOrdersPage() {
         hours:         parseFloat(serviceForm.hours),
         price_at_time: parseFloat(serviceForm.price_at_time),
       })
+      showSuccess('Service added')
       setServiceForm({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
       refreshDetail(detail.work_order_id)
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to add service')
+      showError(err.response?.data?.message || 'Failed to add service')
     }
   }
 
@@ -156,10 +171,11 @@ export default function WorkOrdersPage() {
         price_at_time:      parseFloat(partForm.price_at_time),
         cost_price_at_time: parseFloat(partForm.cost_price_at_time),
       })
+      showSuccess('Part added')
       setPartForm({ part_id: '', quantity: '1', price_at_time: '', cost_price_at_time: '' })
       refreshDetail(detail.work_order_id)
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to add part')
+      showError(err.response?.data?.message || 'Failed to add part')
     }
   }
 
@@ -167,9 +183,10 @@ export default function WorkOrdersPage() {
     if (!confirm('Remove this service?')) return
     try {
       await api.delete(`/workorders/${detail.work_order_id}/services/${serviceId}`)
+      showSuccess('Service removed')
       refreshDetail(detail.work_order_id)
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to remove service')
+      showError(err.response?.data?.message || 'Failed to remove service')
     }
   }
 
@@ -177,9 +194,10 @@ export default function WorkOrdersPage() {
     if (!confirm('Remove this part? Stock will be restored.')) return
     try {
       await api.delete(`/workorders/${detail.work_order_id}/parts/${partLineId}`)
+      showSuccess('Part removed')
       refreshDetail(detail.work_order_id)
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to remove part')
+      showError(err.response?.data?.message || 'Failed to remove part')
     }
   }
 
@@ -228,6 +246,8 @@ export default function WorkOrdersPage() {
 
   return (
     <Layout>
+      <Toast error={error} success={success} />
+      
       <div style={shared.pageHeader}>
         <h2 style={shared.pageTitle}>Work Orders</h2>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>

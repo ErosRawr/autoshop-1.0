@@ -4,10 +4,12 @@ import Layout from '../components/Layout'
 import SearchBar from '../components/SearchBar'
 import TableMeta from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
+import Toast from '../components/Toast'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
 import { useAuth } from '../context/AuthContext'
 import { useLocation } from '../context/LocationContext'
+import { useError } from '../hooks/useError'
 
 const STATUS_BADGE = {
   scheduled:  { ...shared.badge, ...shared.badgeBlue   },
@@ -36,6 +38,7 @@ export default function AppointmentsPage() {
   const { user }            = useAuth()
   const { currentLocation } = useLocation()
   const { toggle, sort, indicator } = useSort('scheduled_at', 'asc')
+  const { error, success, showError, showSuccess } = useError()
 
   useEffect(() => { if (currentLocation) fetchAll() }, [currentLocation])
 
@@ -51,7 +54,10 @@ export default function AppointmentsPage() {
       setCustomers(cRes.data)
       setVehicles(vRes.data)
       setMechanics(mRes.data)
-    } catch (err) { console.error(err) }
+    } catch (err) { 
+      console.error(err)
+      showError('Failed to fetch appointments data')
+    }
     finally { setLoading(false) }
   }
 
@@ -71,24 +77,25 @@ export default function AppointmentsPage() {
         duration_estimate: form.duration_estimate ? parseInt(form.duration_estimate) : null,
         notes:             form.notes             || null,
       })
+      showSuccess('Appointment booked successfully')
       setForm({ customer_id: '', vehicle_id: '', assigned_to: '', scheduled_at: '', duration_estimate: '', notes: '' })
       setShowForm(false)
       fetchAll()
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create appointment')
+      showError(err.response?.data?.message || 'Failed to create appointment')
     } finally { setSaving(false) }
   }
 
   async function handleStatusChange(id, status) {
     try {
       await api.patch(`/appointments/${id}/status`, { status })
+      showSuccess(`Status updated to ${status}`)
       fetchAll()
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update status')
+      showError(err.response?.data?.message || 'Failed to update status')
     }
   }
 
-  // Separate upcoming from past
   const now = new Date()
   const filtered = sort(
     appointments.filter(a => {
@@ -111,6 +118,8 @@ export default function AppointmentsPage() {
 
   return (
     <Layout>
+      <Toast error={error} success={success} />
+      
       <div style={shared.pageHeader}>
         <h2 style={shared.pageTitle}>Appointments</h2>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -203,7 +212,6 @@ export default function AppointmentsPage() {
 
       <TableMeta total={appointments.length} showing={filtered.length} label="appointments" />
 
-      {/* Upcoming */}
       {upcoming.length > 0 && (
         <>
           <p style={styles.sectionLabel}>📅 Upcoming ({upcoming.length})</p>
@@ -217,7 +225,6 @@ export default function AppointmentsPage() {
         </>
       )}
 
-      {/* Past / Cancelled */}
       {past.length > 0 && (
         <>
           <p style={{ ...styles.sectionLabel, marginTop: '1.5rem' }}>🗂 Past & Cancelled ({past.length})</p>
@@ -265,7 +272,7 @@ function AppointmentTable({ appointments, toggle, indicator, onStatusChange, hig
                 key={a.appointment_id}
                 style={{
                   ...shared.tr,
-                  backgroundColor: highlight && isToday ? 'var(--bg-badge-yellow)' : 'transparent',
+                  backgroundColor: highlight && isToday ? 'rgba(251, 191, 36, 0.1)' : 'transparent',
                 }}
               >
                 <td style={{ ...shared.td, fontWeight: '600', whiteSpace: 'nowrap' }}>

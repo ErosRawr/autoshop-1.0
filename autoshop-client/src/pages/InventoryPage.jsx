@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
 import Layout from '../components/Layout'
+import Toast from '../components/Toast'
 import { shared } from '../styles/shared'
 import { useLocation } from '../context/LocationContext'
-import { useAuth } from '../context/AuthContext' // Added this import
+import { useAuth } from '../context/AuthContext'
+import { useError } from '../hooks/useError'
 
 export default function InventoryPage() {
   const [stock, setStock]       = useState([])
@@ -12,8 +14,11 @@ export default function InventoryPage() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving]     = useState(false)
   const [form, setForm]         = useState({ part_id: '', quantity: '', notes: '' })
+  
   const { currentLocation }     = useLocation()
-  const { user } = useAuth() // Now defined correctly
+  const { user }                = useAuth()
+  const { error, success, showError, showSuccess } = useError()
+  
   const LOCATION_ID = user?.location_id
 
   useEffect(() => {
@@ -28,7 +33,10 @@ export default function InventoryPage() {
       ])
       setStock(sRes.data)
       setParts(pRes.data)
-    } catch (err) { console.error(err) }
+    } catch (err) { 
+      console.error(err) 
+      showError('Failed to fetch inventory data')
+    }
     finally { setLoading(false) }
   }
 
@@ -42,11 +50,12 @@ export default function InventoryPage() {
         quantity:    parseInt(form.quantity),
         notes:       form.notes || undefined,
       })
+      showSuccess('Stock received successfully')
       setForm({ part_id: '', quantity: '', notes: '' })
       setShowForm(false)
       fetchAll()
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to receive stock')
+      showError(err.response?.data?.message || 'Failed to receive stock')
     } finally { setSaving(false) }
   }
 
@@ -56,6 +65,8 @@ export default function InventoryPage() {
 
   return (
     <Layout>
+      <Toast error={error} success={success} />
+      
       <div style={shared.pageHeader}>
         <h2 style={shared.pageTitle}>
           Inventory

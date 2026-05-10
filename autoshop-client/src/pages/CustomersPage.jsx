@@ -4,8 +4,10 @@ import Layout from '../components/Layout'
 import SearchBar  from '../components/SearchBar'
 import TableMeta  from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
+import Toast from '../components/Toast'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
+import { useError } from '../hooks/useError'
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([])
@@ -14,7 +16,9 @@ export default function CustomersPage() {
   const [saving, setSaving]       = useState(false)
   const [search, setSearch]       = useState('')
   const [form, setForm]           = useState({ name: '', phone: '', email: '', rfc: '' })
+  
   const { toggle, sort, indicator } = useSort('name')
+  const { error, success, showError, showSuccess } = useError()
 
   useEffect(() => { fetchCustomers() }, [])
 
@@ -22,7 +26,10 @@ export default function CustomersPage() {
     try {
       const res = await api.get('/customers')
       setCustomers(res.data)
-    } catch (err) { console.error(err) }
+    } catch (err) { 
+      console.error(err)
+      showError('Failed to fetch customers')
+    }
     finally { setLoading(false) }
   }
 
@@ -33,11 +40,12 @@ export default function CustomersPage() {
     setSaving(true)
     try {
       await api.post('/customers', form)
+      showSuccess('Customer created successfully')
       setForm({ name: '', phone: '', email: '', rfc: '' })
       setShowForm(false)
       fetchCustomers()
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create customer')
+      showError(err.response?.data?.message || 'Failed to create customer')
     } finally { setSaving(false) }
   }
 
@@ -45,8 +53,11 @@ export default function CustomersPage() {
     if (!confirm('Deactivate this customer?')) return
     try {
       await api.delete(`/customers/${id}`)
+      showSuccess('Customer deactivated')
       fetchCustomers()
-    } catch (err) { alert('Failed to deactivate') }
+    } catch (err) { 
+      showError('Failed to deactivate') 
+    }
   }
 
   const filtered = sort(
@@ -62,6 +73,8 @@ export default function CustomersPage() {
 
   return (
     <Layout>
+      <Toast error={error} success={success} />
+      
       <div style={shared.pageHeader}>
         <h2 style={shared.pageTitle}>Customers</h2>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>

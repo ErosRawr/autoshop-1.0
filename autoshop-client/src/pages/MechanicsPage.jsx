@@ -7,8 +7,12 @@ import SortableTh from '../components/SortableTh'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
 import { useLocation } from '../context/LocationContext'
+import { useError } from '../hooks/useError'
+import Toast from '../components/Toast'
 
 export default function MechanicsPage() {
+  const { error, success, showError, showSuccess } = useError()
+  
   const [mechanics, setMechanics] = useState([])
   const [loading, setLoading]     = useState(true)
   const [showForm, setShowForm]   = useState(false)
@@ -43,11 +47,12 @@ export default function MechanicsPage() {
         location_id: currentLocation.location_id,
         specialty:   form.specialty || null,
       })
+      showSuccess('Mechanic created successfully')
       setForm({ name: '', username: '', password: '', specialty: '' })
       setShowForm(false)
       fetchMechanics()
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create mechanic')
+      showError(err.response?.data?.message || 'Failed to create mechanic')
     } finally { setSaving(false) }
   }
 
@@ -62,7 +67,7 @@ export default function MechanicsPage() {
     })
   )
 
-  if (loading) return <Layout><p style={shared.empty}>Loading...</p></Layout>
+  if (loading) return <Layout><p style={shared.empty}>Loading...</p><Toast error={error} success={success} /></Layout>
 
   return (
     <Layout>
@@ -199,6 +204,8 @@ export default function MechanicsPage() {
           </table>
         </div>
       )}
+      
+      <Toast error={error} success={success} />
     </Layout>
   )
 }

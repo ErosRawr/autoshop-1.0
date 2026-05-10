@@ -4,8 +4,10 @@ import Layout from '../components/Layout'
 import SearchBar  from '../components/SearchBar'
 import TableMeta  from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
+import Toast from '../components/Toast'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
+import { useError } from '../hooks/useError'
 
 export default function VehiclesPage() {
   const [vehicles, setVehicles]   = useState([])
@@ -17,7 +19,9 @@ export default function VehiclesPage() {
   const [form, setForm]           = useState({
     customer_id: '', make: '', model: '', year: '', plate: '', color: '', vehicle_type: ''
   })
+  
   const { toggle, sort, indicator } = useSort('make')
+  const { error, success, showError, showSuccess } = useError()
 
   useEffect(() => { fetchAll() }, [])
 
@@ -26,7 +30,10 @@ export default function VehiclesPage() {
       const [vRes, cRes] = await Promise.all([api.get('/vehicles'), api.get('/customers')])
       setVehicles(vRes.data)
       setCustomers(cRes.data)
-    } catch (err) { console.error(err) }
+    } catch (err) { 
+      console.error(err)
+      showError('Failed to fetch data')
+    }
     finally { setLoading(false) }
   }
 
@@ -37,11 +44,12 @@ export default function VehiclesPage() {
     setSaving(true)
     try {
       await api.post('/vehicles', form)
+      showSuccess('Vehicle created successfully')
       setForm({ customer_id: '', make: '', model: '', year: '', plate: '', color: '', vehicle_type: '' })
       setShowForm(false)
       fetchAll()
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create vehicle')
+      showError(err.response?.data?.message || 'Failed to create vehicle')
     } finally { setSaving(false) }
   }
 
@@ -63,6 +71,8 @@ export default function VehiclesPage() {
 
   return (
     <Layout>
+      <Toast error={error} success={success} />
+      
       <div style={shared.pageHeader}>
         <h2 style={shared.pageTitle}>Vehicles</h2>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
