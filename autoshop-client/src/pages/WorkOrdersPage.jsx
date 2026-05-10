@@ -94,7 +94,7 @@ export default function WorkOrdersPage() {
   function handleChange(e) { setForm({ ...form, [e.target.name]: e.target.value }) }
   function handleCustomerChange(e) { setForm({ ...form, customer_id: e.target.value, vehicle_id: '' }) }
 
-  const filteredVehicles = vehicles.filter(v => v.customer_id === parseInt(form.customer_id))
+  const filteredVehicles = vehicles.filter(v => String(v.customer_id) === String(form.customer_id))
 
   async function handleSubmit(e) {
     e.preventDefault()
