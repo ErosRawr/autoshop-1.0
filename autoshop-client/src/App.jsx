@@ -7,6 +7,7 @@ import LoginPage       from './pages/LoginPage'
 import CustomersPage   from './pages/CustomersPage'
 import VehiclesPage    from './pages/VehiclesPage'
 import WorkOrdersPage  from './pages/WorkOrdersPage'
+import AppointmentsPage from './pages/AppointmentsPage'
 import InvoicesPage    from './pages/InvoicesPage'
 import InventoryPage   from './pages/InventoryPage'
 import LocationsPage from './pages/LocationsPage'
@@ -68,6 +69,12 @@ function AppRoutes() {
           <RoleRoute roles={['admin', 'receptionist', 'mechanic']}>
             <WorkOrdersPage />
           </RoleRoute>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/appointments" element={
+        <ProtectedRoute>
+          <AppointmentsPage />
         </ProtectedRoute>
       } />
 
