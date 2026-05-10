@@ -14,6 +14,7 @@ const ALL_LINKS = [
   { to: '/suppliers', label: 'Suppliers',   roles: ['admin'] },
   { to: '/parts',     label: 'Parts',       roles: ['admin', 'receptionist'] },
   { to: '/appointments', label: 'Appointments', roles: ['admin', 'receptionist'] },
+  { to: '/mechanics', label: 'Mechanics', roles: ['admin']},
 ]
 
 export default function Navbar() {
