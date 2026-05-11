@@ -39,15 +39,28 @@ export default function WorkOrdersPage() {
   const [saving, setSaving]         = useState(false)
   const [selected, setSelected]     = useState(null)
   
+  // FIX: Seed location_id from currentLocation
   const [form, setForm] = useState({
-    location_id: '', customer_id: '', vehicle_id: '',
-    priority: 'normal', mileage: '', problem_description: ''
+    location_id: currentLocation?.location_id?.toString() || '',
+    customer_id: '', 
+    vehicle_id: '',
+    priority: 'normal', 
+    mileage: '', 
+    problem_description: ''
   })
+
+  // Sync location_id when context becomes available
+  useEffect(() => {
+    if (currentLocation) {
+      setForm(prev => ({ ...prev, location_id: String(currentLocation.location_id) }))
+    }
+  }, [currentLocation])
+
   const [detail, setDetail]         = useState(null)
   const [filterStatus, setFilterStatus] = useState('')
   const [search, setSearch]         = useState('')
   
-  // FIX: Destructure 'sortKey' from useSort to track the active sorting state
+  // Hooks
   const { toggle, sort, indicator, sortKey } = useSort('created_at', 'desc')
   
   const [serviceForm, setServiceForm] = useState({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
@@ -309,7 +322,6 @@ export default function WorkOrdersPage() {
                 <table style={shared.table}>
                   <thead style={shared.thead}>
                     <tr>
-                      {/* FIX: Passing the global 'sortKey' to every SortableTh */}
                       <SortableTh label="#"        sortKey="work_order_id" currentKey={sortKey} onSort={toggle} indicator={indicator} />
                       <SortableTh label="Customer" sortKey="customer_name" currentKey={sortKey} onSort={toggle} indicator={indicator} />
                       <SortableTh label="Vehicle"  sortKey="make"          currentKey={sortKey} onSort={toggle} indicator={indicator} />
@@ -320,7 +332,6 @@ export default function WorkOrdersPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {/* MODIFIED: Using paginated instead of filtered */}
                     {paginated.map(wo => (
                       <tr
                         key={wo.work_order_id}
@@ -363,7 +374,6 @@ export default function WorkOrdersPage() {
                 </table>
               </div>
 
-              {/* ADDED: Pagination controls */}
               <Pagination 
                 page={page} 
                 totalPages={totalPages} 
