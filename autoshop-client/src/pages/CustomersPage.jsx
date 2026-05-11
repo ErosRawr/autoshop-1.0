@@ -5,9 +5,11 @@ import SearchBar  from '../components/SearchBar'
 import TableMeta  from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
 import Toast from '../components/Toast'
+import Pagination from '../components/Pagination' // [NEW]
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
 import { useError } from '../hooks/useError'
+import { usePagination } from '../hooks/usePagination' // [NEW]
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([])
@@ -69,6 +71,12 @@ export default function CustomersPage() {
     )
   )
 
+  // [NEW] Initialize Pagination
+  const { page, totalPages, paginated, nextPage, prevPage, goToPage, reset } = usePagination(filtered, 15)
+
+  // [NEW] Reset to page 1 when searching
+  useEffect(() => { reset() }, [search])
+
   if (loading) return <Layout><p style={shared.empty}>Loading...</p></Layout>
 
   return (
@@ -122,42 +130,54 @@ export default function CustomersPage() {
           {search && <button style={shared.btnGhost} onClick={() => setSearch('')}>Clear search</button>}
         </div>
       ) : (
-        <div style={shared.tableWrapper}>
-          <table style={shared.table}>
-            <thead style={shared.thead}>
-              <tr>
-                <SortableTh label="Name"   sortKey="name"  currentKey="name"  onSort={toggle} indicator={indicator} />
-                <SortableTh label="Phone"  sortKey="phone" currentKey="phone" onSort={toggle} indicator={indicator} />
-                <SortableTh label="Email"  sortKey="email" currentKey="email" onSort={toggle} indicator={indicator} />
-                <th style={shared.th}>RFC</th>
-                <SortableTh label="Status" sortKey="is_active" currentKey="is_active" onSort={toggle} indicator={indicator} />
-                <th style={shared.th}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(c => (
-                <tr key={c.customer_id} style={shared.tr}>
-                  <td style={{ ...shared.td, fontWeight: '600' }}>{c.name}</td>
-                  <td style={shared.td}>{c.phone}</td>
-                  <td style={shared.td}>{c.email || '—'}</td>
-                  <td style={shared.td}>{c.rfc || '—'}</td>
-                  <td style={shared.td}>
-                    <span style={{ ...shared.badge, ...(c.is_active ? shared.badgeGreen : shared.badgeRed) }}>
-                      {c.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td style={shared.td}>
-                    {c.is_active && (
-                      <button style={shared.btnDanger} onClick={() => handleDeactivate(c.customer_id)}>
-                        Deactivate
-                      </button>
-                    )}
-                  </td>
+        <>
+          <div style={shared.tableWrapper}>
+            <table style={shared.table}>
+              <thead style={shared.thead}>
+                <tr>
+                  <SortableTh label="Name"   sortKey="name"  currentKey="name"  onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Phone"  sortKey="phone" currentKey="phone" onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Email"  sortKey="email" currentKey="email" onSort={toggle} indicator={indicator} />
+                  <th style={shared.th}>RFC</th>
+                  <SortableTh label="Status" sortKey="is_active" currentKey="is_active" onSort={toggle} indicator={indicator} />
+                  <th style={shared.th}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {/* [MODIFIED] Use paginated instead of filtered */}
+                {paginated.map(c => (
+                  <tr key={c.customer_id} style={shared.tr}>
+                    <td style={{ ...shared.td, fontWeight: '600' }}>{c.name}</td>
+                    <td style={shared.td}>{c.phone}</td>
+                    <td style={shared.td}>{c.email || '—'}</td>
+                    <td style={shared.td}>{c.rfc || '—'}</td>
+                    <td style={shared.td}>
+                      <span style={{ ...shared.badge, ...(c.is_active ? shared.badgeGreen : shared.badgeRed) }}>
+                        {c.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td style={shared.td}>
+                      {c.is_active && (
+                        <button style={shared.btnDanger} onClick={() => handleDeactivate(c.customer_id)}>
+                          Deactivate
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          {/* [NEW] Pagination Component */}
+          <Pagination 
+            page={page} 
+            totalPages={totalPages} 
+            nextPage={nextPage} 
+            prevPage={prevPage} 
+            goToPage={goToPage} 
+          />
+        </>
       )}
     </Layout>
   )

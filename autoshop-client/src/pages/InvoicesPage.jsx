@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
 import Layout from '../components/Layout'
+import Pagination from '../components/Pagination'
 import { shared } from '../styles/shared'
 import { useLocation } from '../context/LocationContext'
+import { usePagination } from '../hooks/usePagination'
 
 const STATUS_BADGE = {
   draft:          { ...shared.badge, ...shared.badgeGray   },
@@ -20,9 +22,15 @@ export default function InvoicesPage() {
   const [payForm, setPayForm]   = useState({ amount: '', payment_method: 'cash', reference: '' })
   const { currentLocation }     = useLocation()
 
+  // Pagination Logic
+  const { page, totalPages, paginated, nextPage, prevPage, goToPage, reset } = usePagination(invoices, 20)
+
   useEffect(() => {
     if (currentLocation) fetchInvoices()
   }, [currentLocation])
+
+  // Reset pagination when location changes
+  useEffect(() => { reset() }, [currentLocation])
 
   async function fetchInvoices() {
     try {
@@ -78,23 +86,35 @@ export default function InvoicesPage() {
               <p style={styles.emptyIcon}>🧾</p>
               <p style={styles.emptyText}>No invoices at {currentLocation?.name} yet</p>
             </div>
-          ) : invoices.map(inv => (
-            <div
-              key={inv.invoice_id}
-              style={{ ...styles.invoiceCard, ...(selected?.invoice_id === inv.invoice_id ? styles.invoiceCardActive : {}) }}
-              onClick={() => openDetail(inv.invoice_id)}
-            >
-              <div style={styles.invoiceCardTop}>
-                <span style={styles.folio}>{inv.folio}</span>
-                <span style={STATUS_BADGE[inv.status]}>{inv.status.replace('_', ' ')}</span>
-              </div>
-              <p style={styles.invoiceCustomer}>{inv.customer_name}</p>
-              <div style={styles.invoiceCardBottom}>
-                <span style={styles.invoiceTotal}>${parseFloat(inv.total).toFixed(2)}</span>
-                <span style={styles.invoiceDate}>{new Date(inv.date).toLocaleDateString()}</span>
-              </div>
-            </div>
-          ))}
+          ) : (
+            <>
+              {paginated.map(inv => (
+                <div
+                  key={inv.invoice_id}
+                  style={{ ...styles.invoiceCard, ...(selected?.invoice_id === inv.invoice_id ? styles.invoiceCardActive : {}) }}
+                  onClick={() => openDetail(inv.invoice_id)}
+                >
+                  <div style={styles.invoiceCardTop}>
+                    <span style={styles.folio}>{inv.folio}</span>
+                    <span style={STATUS_BADGE[inv.status]}>{inv.status.replace('_', ' ')}</span>
+                  </div>
+                  <p style={styles.invoiceCustomer}>{inv.customer_name}</p>
+                  <div style={styles.invoiceCardBottom}>
+                    <span style={styles.invoiceTotal}>${parseFloat(inv.total).toFixed(2)}</span>
+                    <span style={styles.invoiceDate}>{new Date(inv.date).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))}
+              
+              <Pagination 
+                page={page} 
+                totalPages={totalPages} 
+                nextPage={nextPage} 
+                prevPage={prevPage} 
+                goToPage={goToPage} 
+              />
+            </>
+          )}
         </div>
 
         {/* Detail */}

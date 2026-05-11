@@ -5,9 +5,11 @@ import SearchBar  from '../components/SearchBar'
 import TableMeta  from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
 import Toast from '../components/Toast'
+import Pagination from '../components/Pagination' // [NEW]
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
 import { useError } from '../hooks/useError'
+import { usePagination } from '../hooks/usePagination' // [NEW]
 
 export default function VehiclesPage() {
   const [vehicles, setVehicles]   = useState([])
@@ -66,6 +68,12 @@ export default function VehiclesPage() {
       )
     })
   )
+
+  // [NEW] Initialize Pagination
+  const { page, totalPages, paginated, nextPage, prevPage, goToPage, reset } = usePagination(filtered, 15)
+
+  // [NEW] Reset page on search
+  useEffect(() => { reset() }, [search])
 
   if (loading) return <Layout><p style={shared.empty}>Loading...</p></Layout>
 
@@ -137,34 +145,46 @@ export default function VehiclesPage() {
           {search && <button style={shared.btnGhost} onClick={() => setSearch('')}>Clear search</button>}
         </div>
       ) : (
-        <div style={shared.tableWrapper}>
-          <table style={shared.table}>
-            <thead style={shared.thead}>
-              <tr>
-                <SortableTh label="Customer" sortKey="customer_name" currentKey="customer_name" onSort={toggle} indicator={indicator} />
-                <SortableTh label="Make"     sortKey="make"          currentKey="make"          onSort={toggle} indicator={indicator} />
-                <SortableTh label="Model"    sortKey="model"         currentKey="model"         onSort={toggle} indicator={indicator} />
-                <SortableTh label="Year"     sortKey="year"          currentKey="year"          onSort={toggle} indicator={indicator} />
-                <th style={shared.th}>Plate</th>
-                <th style={shared.th}>Color</th>
-                <th style={shared.th}>Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(v => (
-                <tr key={v.vehicle_id} style={shared.tr}>
-                  <td style={shared.td}>{v.customer_name}</td>
-                  <td style={{ ...shared.td, fontWeight: '600' }}>{v.make}</td>
-                  <td style={shared.td}>{v.model}</td>
-                  <td style={shared.td}>{v.year}</td>
-                  <td style={shared.td}>{v.plate || '—'}</td>
-                  <td style={shared.td}>{v.color || '—'}</td>
-                  <td style={shared.td}>{v.vehicle_type || '—'}</td>
+        <>
+          <div style={shared.tableWrapper}>
+            <table style={shared.table}>
+              <thead style={shared.thead}>
+                <tr>
+                  <SortableTh label="Customer" sortKey="customer_name" currentKey="customer_name" onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Make"     sortKey="make"          currentKey="make"          onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Model"    sortKey="model"         currentKey="model"         onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Year"     sortKey="year"          currentKey="year"          onSort={toggle} indicator={indicator} />
+                  <th style={shared.th}>Plate</th>
+                  <th style={shared.th}>Color</th>
+                  <th style={shared.th}>Type</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {/* [MODIFIED] Use paginated instead of filtered */}
+                {paginated.map(v => (
+                  <tr key={v.vehicle_id} style={shared.tr}>
+                    <td style={shared.td}>{v.customer_name}</td>
+                    <td style={{ ...shared.td, fontWeight: '600' }}>{v.make}</td>
+                    <td style={shared.td}>{v.model}</td>
+                    <td style={shared.td}>{v.year}</td>
+                    <td style={shared.td}>{v.plate || '—'}</td>
+                    <td style={shared.td}>{v.color || '—'}</td>
+                    <td style={shared.td}>{v.vehicle_type || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* [NEW] Pagination Component */}
+          <Pagination 
+            page={page} 
+            totalPages={totalPages} 
+            nextPage={nextPage} 
+            prevPage={prevPage} 
+            goToPage={goToPage} 
+          />
+        </>
       )}
     </Layout>
   )

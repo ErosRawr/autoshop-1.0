@@ -1,16 +1,14 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import api from '../api'
 import Layout     from '../components/Layout'
 import SearchBar  from '../components/SearchBar'
 import TableMeta  from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
-import Toast      from '../components/Toast'
+import Pagination from '../components/Pagination'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
-import { useRole } from '../hooks/useRole'
 import { useLocation } from '../context/LocationContext'
-import { useError } from '../hooks/useError'
+import { usePagination } from '../hooks/usePagination'
 
 const STATUS_BADGE = {
   open:          { ...shared.badge, ...shared.badgeBlue   },
@@ -28,6 +26,8 @@ const PRIORITY_BADGE = {
 }
 
 export default function WorkOrdersPage() {
+  const { currentLocation } = useLocation()
+
   const [workOrders, setWorkOrders] = useState([])
   const [customers, setCustomers]   = useState([])
   const [vehicles, setVehicles]     = useState([])
@@ -37,27 +37,23 @@ export default function WorkOrdersPage() {
   const [loading, setLoading]       = useState(true)
   const [showForm, setShowForm]     = useState(false)
   const [saving, setSaving]         = useState(false)
-  const [generatingInvoice, setGeneratingInvoice] = useState(false)
   const [selected, setSelected]     = useState(null)
-  const [form, setForm]             = useState({
-    customer_id: '', vehicle_id: '',
+  
+  const [form, setForm] = useState({
+    location_id: '', customer_id: '', vehicle_id: '',
     priority: 'normal', mileage: '', problem_description: ''
   })
-  const [detail, setDetail]             = useState(null)
+  const [detail, setDetail]         = useState(null)
   const [filterStatus, setFilterStatus] = useState('')
-  const [search, setSearch]             = useState('')
-  const [serviceForm, setServiceForm]   = useState({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
-  const [partForm, setPartForm]         = useState({ part_id: '', quantity: '1', price_at_time: '', cost_price_at_time: '' })
+  const [search, setSearch]         = useState('')
+  
+  // FIX: Destructure 'sortKey' from useSort to track the active sorting state
+  const { toggle, sort, indicator, sortKey } = useSort('created_at', 'desc')
+  
+  const [serviceForm, setServiceForm] = useState({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
+  const [partForm, setPartForm]       = useState({ part_id: '', quantity: '1', price_at_time: '', cost_price_at_time: '' })
 
-  const { toggle, sort, indicator } = useSort('created_at', 'desc')
-  const { currentLocation }         = useLocation()
-  const { error, success, showError, showSuccess } = useError()
-  const canEdit                     = useRole('admin', 'receptionist')
-  const navigate                    = useNavigate()
-
-  useEffect(() => {
-    if (currentLocation) fetchAll()
-  }, [currentLocation])
+  useEffect(() => { if (currentLocation) fetchAll() }, [currentLocation])
 
   async function fetchAll() {
     try {
@@ -65,7 +61,7 @@ export default function WorkOrdersPage() {
         api.get(`/workorders?location_id=${currentLocation.location_id}`),
         api.get('/customers'),
         api.get('/vehicles'),
-        api.get(`/mechanics?location_id=${currentLocation.location_id}`),
+        api.get('/mechanics'),
         api.get('/services'),
         api.get('/parts'),
       ])
@@ -75,10 +71,7 @@ export default function WorkOrdersPage() {
       setMechanics(mRes.data)
       setServices(sRes.data)
       setParts(pRes.data)
-    } catch (err) { 
-      console.error(err)
-      showError('Failed to fetch data')
-    }
+    } catch (err) { console.error(err) }
     finally { setLoading(false) }
   }
 
@@ -87,62 +80,50 @@ export default function WorkOrdersPage() {
     try {
       const res = await api.get(`/workorders/${wo.work_order_id}`)
       setDetail(res.data)
-    } catch (err) { 
-      console.error(err)
-      showError('Failed to load work order details')
-    }
+    } catch (err) { console.error(err) }
   }
 
   async function refreshDetail(id) {
     try {
       const res = await api.get(`/workorders/${id}`)
       setDetail(res.data)
-    } catch (err) { 
-      console.error(err)
-      showError('Failed to refresh details')
-    }
+    } catch (err) { console.error(err) }
   }
 
   function handleChange(e) { setForm({ ...form, [e.target.name]: e.target.value }) }
   function handleCustomerChange(e) { setForm({ ...form, customer_id: e.target.value, vehicle_id: '' }) }
 
-  const filteredVehicles = vehicles.filter(v => String(v.customer_id) === String(form.customer_id))
+  const filteredVehicles = vehicles.filter(v => v.customer_id === parseInt(form.customer_id))
 
   async function handleSubmit(e) {
     e.preventDefault()
     setSaving(true)
     try {
-      await api.post('/workorders', form)
-      showSuccess('Work order opened successfully')
-      setForm({ customer_id: '', vehicle_id: '', priority: 'normal', mileage: '', problem_description: '' })
+      await api.post('/workorders', {
+        ...form,
+        location_id: String(currentLocation.location_id),
+      })
+      alert('Work order created successfully')
+      setForm({
+        location_id: String(currentLocation.location_id),
+        customer_id: '', vehicle_id: '',
+        priority: 'normal', mileage: '', problem_description: ''
+      })
       setShowForm(false)
       fetchAll()
     } catch (err) {
-      showError(err.response?.data?.message || 'Failed to create work order')
+      alert(err.response?.data?.message || 'Failed to create work order')
     } finally { setSaving(false) }
   }
 
   async function handleStatusChange(id, status) {
     try {
       await api.patch(`/workorders/${id}/status`, { status })
-      showSuccess('Status updated')
       fetchAll()
       if (selected?.work_order_id === id) refreshDetail(id)
     } catch (err) {
-      showError(err.response?.data?.message || 'Failed to update status')
+      alert(err.response?.data?.message || 'Failed to update status')
     }
-  }
-
-  async function handleGenerateInvoice() {
-    if (!confirm('Generate invoice for this work order?')) return
-    setGeneratingInvoice(true)
-    try {
-      await api.post(`/invoices/generate/${detail.work_order_id}`)
-      showSuccess('Invoice generated successfully')
-      navigate('/invoices')
-    } catch (err) {
-      showError(err.response?.data?.message || 'Failed to generate invoice')
-    } finally { setGeneratingInvoice(false) }
   }
 
   async function handleAddService(e) {
@@ -154,11 +135,10 @@ export default function WorkOrdersPage() {
         hours:         parseFloat(serviceForm.hours),
         price_at_time: parseFloat(serviceForm.price_at_time),
       })
-      showSuccess('Service added')
       setServiceForm({ service_id: '', mechanic_id: '', hours: '1', price_at_time: '' })
       refreshDetail(detail.work_order_id)
     } catch (err) {
-      showError(err.response?.data?.message || 'Failed to add service')
+      alert(err.response?.data?.message || 'Failed to add service')
     }
   }
 
@@ -171,11 +151,10 @@ export default function WorkOrdersPage() {
         price_at_time:      parseFloat(partForm.price_at_time),
         cost_price_at_time: parseFloat(partForm.cost_price_at_time),
       })
-      showSuccess('Part added')
       setPartForm({ part_id: '', quantity: '1', price_at_time: '', cost_price_at_time: '' })
       refreshDetail(detail.work_order_id)
     } catch (err) {
-      showError(err.response?.data?.message || 'Failed to add part')
+      alert(err.response?.data?.message || 'Failed to add part')
     }
   }
 
@@ -183,10 +162,9 @@ export default function WorkOrdersPage() {
     if (!confirm('Remove this service?')) return
     try {
       await api.delete(`/workorders/${detail.work_order_id}/services/${serviceId}`)
-      showSuccess('Service removed')
       refreshDetail(detail.work_order_id)
     } catch (err) {
-      showError(err.response?.data?.message || 'Failed to remove service')
+      alert(err.response?.data?.message || 'Failed to remove service')
     }
   }
 
@@ -194,10 +172,9 @@ export default function WorkOrdersPage() {
     if (!confirm('Remove this part? Stock will be restored.')) return
     try {
       await api.delete(`/workorders/${detail.work_order_id}/parts/${partLineId}`)
-      showSuccess('Part removed')
       refreshDetail(detail.work_order_id)
     } catch (err) {
-      showError(err.response?.data?.message || 'Failed to remove part')
+      alert(err.response?.data?.message || 'Failed to remove part')
     }
   }
 
@@ -242,12 +219,14 @@ export default function WorkOrdersPage() {
     })
   )
 
+  const { page, totalPages, paginated, nextPage, prevPage, goToPage, reset } = usePagination(filtered, 10)
+
+  useEffect(() => { reset() }, [search, filterStatus])
+
   if (loading) return <Layout><p style={shared.empty}>Loading...</p></Layout>
 
   return (
     <Layout>
-      <Toast error={error} success={success} />
-      
       <div style={shared.pageHeader}>
         <h2 style={shared.pageTitle}>Work Orders</h2>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -260,16 +239,12 @@ export default function WorkOrdersPage() {
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          {canEdit && (
-            <>
-              {showForm && <button style={shared.btnGhost} onClick={() => setShowForm(false)}>Cancel</button>}
-              <button style={shared.btnPrimary} onClick={() => setShowForm(!showForm)}>+ New Work Order</button>
-            </>
-          )}
+          {showForm && <button style={shared.btnGhost} onClick={() => setShowForm(false)}>Cancel</button>}
+          <button style={shared.btnPrimary} onClick={() => setShowForm(!showForm)}>+ New Work Order</button>
         </div>
       </div>
 
-      {canEdit && showForm && (
+      {showForm && (
         <div style={{ ...shared.card, marginBottom: '1.5rem' }}>
           <h3 style={styles.sectionTitle}>New Work Order</h3>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -320,7 +295,6 @@ export default function WorkOrdersPage() {
       )}
 
       <div style={selected ? styles.splitView : {}}>
-        {/* Table */}
         <div>
           <TableMeta total={workOrders.length} showing={filtered.length} label="work orders" />
           {filtered.length === 0 ? (
@@ -330,44 +304,46 @@ export default function WorkOrdersPage() {
               {search && <button style={shared.btnGhost} onClick={() => setSearch('')}>Clear search</button>}
             </div>
           ) : (
-            <div style={shared.tableWrapper}>
-              <table style={shared.table}>
-                <thead style={shared.thead}>
-                  <tr>
-                    <SortableTh label="#"        sortKey="work_order_id" currentKey="work_order_id" onSort={toggle} indicator={indicator} />
-                    <SortableTh label="Customer" sortKey="customer_name" currentKey="customer_name" onSort={toggle} indicator={indicator} />
-                    <SortableTh label="Vehicle"  sortKey="make"          currentKey="make"          onSort={toggle} indicator={indicator} />
-                    <SortableTh label="Priority" sortKey="priority"      currentKey="priority"      onSort={toggle} indicator={indicator} />
-                    <SortableTh label="Status"   sortKey="status"        currentKey="status"        onSort={toggle} indicator={indicator} />
-                    <SortableTh label="Opened"   sortKey="created_at"    currentKey="created_at"    onSort={toggle} indicator={indicator} />
-                    {canEdit && <th style={shared.th}>Update Status</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(wo => (
-                    <tr
-                      key={wo.work_order_id}
-                      style={{
-                        ...shared.tr,
-                        cursor: 'pointer',
-                        backgroundColor: selected?.work_order_id === wo.work_order_id
-                          ? 'var(--bg-hover)' : 'transparent',
-                      }}
-                      onClick={() => openDetail(wo)}
-                    >
-                      <td style={{ ...shared.td, fontWeight: '700', color: 'var(--accent)' }}>#{wo.work_order_id}</td>
-                      <td style={shared.td}>{wo.customer_name}</td>
-                      <td style={shared.td}>{wo.make} {wo.model} ({wo.year})</td>
-                      <td style={shared.td}>
-                        <span style={PRIORITY_BADGE[wo.priority]}>{wo.priority}</span>
-                      </td>
-                      <td style={shared.td}>
-                        <span style={STATUS_BADGE[wo.status]}>{wo.status.replace(/_/g, ' ')}</span>
-                      </td>
-                      <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>
-                        {new Date(wo.created_at).toLocaleDateString()}
-                      </td>
-                      {canEdit && (
+            <>
+              <div style={shared.tableWrapper}>
+                <table style={shared.table}>
+                  <thead style={shared.thead}>
+                    <tr>
+                      {/* FIX: Passing the global 'sortKey' to every SortableTh */}
+                      <SortableTh label="#"        sortKey="work_order_id" currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                      <SortableTh label="Customer" sortKey="customer_name" currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                      <SortableTh label="Vehicle"  sortKey="make"          currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                      <SortableTh label="Priority" sortKey="priority"      currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                      <SortableTh label="Status"   sortKey="status"        currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                      <SortableTh label="Opened"   sortKey="created_at"    currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                      <th style={shared.th}>Update Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* MODIFIED: Using paginated instead of filtered */}
+                    {paginated.map(wo => (
+                      <tr
+                        key={wo.work_order_id}
+                        style={{
+                          ...shared.tr,
+                          cursor: 'pointer',
+                          backgroundColor: selected?.work_order_id === wo.work_order_id
+                            ? 'var(--bg-hover)' : 'transparent',
+                        }}
+                        onClick={() => openDetail(wo)}
+                      >
+                        <td style={{ ...shared.td, fontWeight: '700', color: 'var(--accent)' }}>#{wo.work_order_id}</td>
+                        <td style={shared.td}>{wo.customer_name}</td>
+                        <td style={shared.td}>{wo.make} {wo.model} ({wo.year})</td>
+                        <td style={shared.td}>
+                          <span style={PRIORITY_BADGE[wo.priority]}>{wo.priority}</span>
+                        </td>
+                        <td style={shared.td}>
+                          <span style={STATUS_BADGE[wo.status]}>{wo.status.replace(/_/g, ' ')}</span>
+                        </td>
+                        <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>
+                          {new Date(wo.created_at).toLocaleDateString()}
+                        </td>
                         <td style={shared.td} onClick={e => e.stopPropagation()}>
                           <select
                             style={{ ...shared.input, padding: '0.35rem 0.6rem', width: 'auto' }}
@@ -381,16 +357,24 @@ export default function WorkOrdersPage() {
                             <option value="cancelled">Cancelled</option>
                           </select>
                         </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ADDED: Pagination controls */}
+              <Pagination 
+                page={page} 
+                totalPages={totalPages} 
+                nextPage={nextPage} 
+                prevPage={prevPage} 
+                goToPage={goToPage} 
+              />
+            </>
           )}
         </div>
 
-        {/* Detail Panel */}
         {selected && (
           <div style={styles.detailPanel}>
             <div style={styles.detailHeader}>
@@ -427,44 +411,6 @@ export default function WorkOrdersPage() {
                   </div>
                 )}
 
-                {/* ── Invoice block ── */}
-                {/* Only shown for admin/receptionist on completed work orders */}
-                {canEdit && detail.status === 'completed' && (
-                  <div style={styles.invoiceBlock}>
-                    {detail.invoice ? (
-                      // Invoice already exists — show its info and a link
-                      <div style={styles.invoiceExists}>
-                        <div>
-                          <p style={styles.invoiceLabel}>Invoice generated</p>
-                          <p style={styles.invoiceFolio}>{detail.invoice.folio}</p>
-                          <span style={{
-                            ...shared.badge,
-                            ...(detail.invoice.status === 'paid' ? shared.badgeGreen : shared.badgeYellow)
-                          }}>
-                            {detail.invoice.status.replace('_', ' ')}
-                          </span>
-                        </div>
-                        <button
-                          style={shared.btnGhost}
-                          onClick={() => navigate('/invoices')}
-                        >
-                          View Invoice →
-                        </button>
-                      </div>
-                    ) : (
-                      // No invoice yet — show the generate button
-                      <button
-                        style={{ ...shared.btnPrimary, width: '100%', justifyContent: 'center' }}
-                        onClick={handleGenerateInvoice}
-                        disabled={generatingInvoice}
-                      >
-                        {generatingInvoice ? 'Generating...' : '🧾 Generate Invoice'}
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Mechanics Summary */}
                 <Section title="👨‍🔧 Mechanics">
                   {detail.services?.length === 0 ? (
                     <p style={styles.subEmpty}>Add services to see mechanic assignments</p>
@@ -480,11 +426,7 @@ export default function WorkOrdersPage() {
                   )}
                 </Section>
 
-                {/* Services */}
                 <Section title="🔧 Services">
-                  {detail.services?.length === 0 && (
-                    <p style={styles.subEmpty}>No services added yet</p>
-                  )}
                   {detail.services?.map((s, i) => (
                     <div key={i} style={styles.lineItem}>
                       <div>
@@ -495,13 +437,13 @@ export default function WorkOrdersPage() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <span style={{ fontWeight: '700' }}>${parseFloat(s.price_at_time).toFixed(2)}</span>
-                        {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
+                        {!['completed', 'cancelled'].includes(detail.status) && (
                           <button style={styles.removeBtn} onClick={() => handleRemoveService(s.id)}>✕</button>
                         )}
                       </div>
                     </div>
                   ))}
-                  {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
+                  {!['completed', 'cancelled'].includes(detail.status) && (
                     <form onSubmit={handleAddService} style={{ ...styles.subForm, flexWrap: 'wrap' }}>
                       <select style={{ ...shared.input, flex: 2, minWidth: '140px' }} value={serviceForm.service_id} onChange={handleServiceSelect} required>
                         <option value="">Select service</option>
@@ -522,11 +464,7 @@ export default function WorkOrdersPage() {
                   )}
                 </Section>
 
-                {/* Parts */}
                 <Section title="🔩 Parts Used">
-                  {detail.parts?.length === 0 && (
-                    <p style={styles.subEmpty}>No parts added yet</p>
-                  )}
                   {detail.parts?.map((p, i) => (
                     <div key={i} style={styles.lineItem}>
                       <div>
@@ -537,13 +475,13 @@ export default function WorkOrdersPage() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <span style={{ fontWeight: '700' }}>${(parseFloat(p.price_at_time) * p.quantity).toFixed(2)}</span>
-                        {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
+                        {!['completed', 'cancelled'].includes(detail.status) && (
                           <button style={styles.removeBtn} onClick={() => handleRemovePart(p.id)}>✕</button>
                         )}
                       </div>
                     </div>
                   ))}
-                  {canEdit && !['completed', 'cancelled'].includes(detail.status) && (
+                  {!['completed', 'cancelled'].includes(detail.status) && (
                     <form onSubmit={handleAddPart} style={{ ...styles.subForm, flexWrap: 'wrap' }}>
                       <select style={{ ...shared.input, flex: 2, minWidth: '140px' }} value={partForm.part_id} onChange={handlePartSelect} required>
                         <option value="">Select part</option>
@@ -559,17 +497,13 @@ export default function WorkOrdersPage() {
                   )}
                 </Section>
 
-                {/* Totals */}
                 {(detail.services?.length > 0 || detail.parts?.length > 0) && (
                   <div style={styles.totals}>
                     <TotalRow label="Services" value={detail.services.reduce((s, x) => s + parseFloat(x.price_at_time) * parseFloat(x.hours), 0)} />
-                    <TotalRow label="Parts"    value={detail.parts.reduce((s, x) => s + parseFloat(x.price_at_time) * x.quantity, 0)} />
+                    <TotalRow label="Parts" value={detail.parts.reduce((s, x) => s + parseFloat(x.price_at_time) * x.quantity, 0)} />
                     <div style={styles.totalFinalRow}>
                       <span>Estimated Total</span>
-                      <span>${(
-                        detail.services.reduce((s, x) => s + parseFloat(x.price_at_time) * parseFloat(x.hours), 0) +
-                        detail.parts.reduce((s, x) => s + parseFloat(x.price_at_time) * x.quantity, 0)
-                      ).toFixed(2)}</span>
+                      <span>${(detail.services.reduce((s, x) => s + parseFloat(x.price_at_time) * parseFloat(x.hours), 0) + detail.parts.reduce((s, x) => s + parseFloat(x.price_at_time) * x.quantity, 0)).toFixed(2)}</span>
                     </div>
                   </div>
                 )}
@@ -585,9 +519,7 @@ export default function WorkOrdersPage() {
 function Section({ title, children }) {
   return (
     <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)' }}>
-      <p style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
-        {title}
-      </p>
+      <p style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>{title}</p>
       {children}
     </div>
   )
@@ -620,11 +552,6 @@ const styles = {
   infoGrid:      { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' },
   descBlock:     { backgroundColor: 'var(--bg-table-head)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '0.5rem' },
   descText:      { fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.5 },
-  // Invoice block sits between the info grid and the sections
-  invoiceBlock:  { margin: '0.75rem 0', padding: '0.75rem', backgroundColor: 'var(--bg-table-head)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' },
-  invoiceExists: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' },
-  invoiceLabel:  { fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.2rem' },
-  invoiceFolio:  { fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '0.25rem' },
   lineItem:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' },
   subForm:       { display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem' },
   subEmpty:      { color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic', padding: '0.5rem 0' },

@@ -4,8 +4,12 @@ import Layout from '../components/Layout'
 import SearchBar from '../components/SearchBar'
 import TableMeta from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
+import Pagination from '../components/Pagination' // Added
+import Toast from '../components/Toast'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
+import { useError } from '../hooks/useError'
+import { usePagination } from '../hooks/usePagination' // Added
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState([])
@@ -16,7 +20,10 @@ export default function SuppliersPage() {
   const [form, setForm]           = useState({
     name: '', contact_name: '', phone: '', email: '', notes: ''
   })
-  const { toggle, sort, indicator } = useSort('name')
+  
+  // Destructured sortKey to fix header indicators
+  const { toggle, sort, indicator, sortKey } = useSort('name')
+  const { error, success, showError, showSuccess } = useError()
 
   useEffect(() => { fetchSuppliers() }, [])
 
@@ -24,7 +31,10 @@ export default function SuppliersPage() {
     try {
       const res = await api.get('/suppliers')
       setSuppliers(res.data)
-    } catch (err) { console.error(err) }
+    } catch (err) { 
+      console.error(err) 
+      showError('Failed to fetch suppliers')
+    }
     finally { setLoading(false) }
   }
 
@@ -35,11 +45,12 @@ export default function SuppliersPage() {
     setSaving(true)
     try {
       await api.post('/suppliers', form)
+      showSuccess('Supplier created successfully')
       setForm({ name: '', contact_name: '', phone: '', email: '', notes: '' })
       setShowForm(false)
       fetchSuppliers()
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create supplier')
+      showError(err.response?.data?.message || 'Failed to create supplier')
     } finally { setSaving(false) }
   }
 
@@ -55,10 +66,18 @@ export default function SuppliersPage() {
     })
   )
 
+  // Pagination Logic
+  const { page, totalPages, paginated, nextPage, prevPage, goToPage, reset } = usePagination(filtered, 10)
+
+  // Reset to page 1 when searching
+  useEffect(() => { reset() }, [search])
+
   if (loading) return <Layout><p style={shared.empty}>Loading...</p></Layout>
 
   return (
     <Layout>
+      <Toast error={error} success={success} />
+      
       <div style={shared.pageHeader}>
         <h2 style={shared.pageTitle}>Suppliers</h2>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -110,38 +129,41 @@ export default function SuppliersPage() {
           {search && <button style={shared.btnGhost} onClick={() => setSearch('')}>Clear search</button>}
         </div>
       ) : (
-        <div style={shared.tableWrapper}>
-          <table style={shared.table}>
-            <thead style={shared.thead}>
-              <tr>
-                <SortableTh label="Name"         sortKey="name"         currentKey="name"         onSort={toggle} indicator={indicator} />
-                <SortableTh label="Contact"      sortKey="contact_name" currentKey="contact_name" onSort={toggle} indicator={indicator} />
-                <SortableTh label="Phone"        sortKey="phone"        currentKey="phone"         onSort={toggle} indicator={indicator} />
-                <SortableTh label="Email"        sortKey="email"        currentKey="email"         onSort={toggle} indicator={indicator} />
-                <th style={shared.th}>Notes</th>
-                <SortableTh label="Status"       sortKey="is_active"    currentKey="is_active"    onSort={toggle} indicator={indicator} />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(s => (
-                <tr key={s.supplier_id} style={shared.tr}>
-                  <td style={{ ...shared.td, fontWeight: '600' }}>{s.name}</td>
-                  <td style={shared.td}>{s.contact_name || '—'}</td>
-                  <td style={shared.td}>{s.phone || '—'}</td>
-                  <td style={shared.td}>{s.email || '—'}</td>
-                  <td style={{ ...shared.td, color: 'var(--text-secondary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {s.notes || '—'}
-                  </td>
-                  <td style={shared.td}>
-                    <span style={{ ...shared.badge, ...(s.is_active ? shared.badgeGreen : shared.badgeRed) }}>
-                      {s.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
+        <>
+          <div style={shared.tableWrapper}>
+            <table style={shared.table}>
+              <thead style={shared.thead}>
+                <tr>
+                  <SortableTh label="Name"         sortKey="name"         currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Contact"      sortKey="contact_name" currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Phone"        sortKey="phone"        currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Email"        sortKey="email"        currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                  <th style={shared.th}>Notes</th>
+                  <SortableTh label="Status"       sortKey="is_active"    currentKey={sortKey} onSort={toggle} indicator={indicator} />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {paginated.map(s => (
+                  <tr key={s.supplier_id} style={shared.tr}>
+                    <td style={{ ...shared.td, fontWeight: '600' }}>{s.name}</td>
+                    <td style={shared.td}>{s.contact_name || '—'}</td>
+                    <td style={shared.td}>{s.phone || '—'}</td>
+                    <td style={shared.td}>{s.email || '—'}</td>
+                    <td style={{ ...shared.td, color: 'var(--text-secondary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {s.notes || '—'}
+                    </td>
+                    <td style={shared.td}>
+                      <span style={{ ...shared.badge, ...(s.is_active ? shared.badgeGreen : shared.badgeRed) }}>
+                        {s.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination page={page} totalPages={totalPages} nextPage={nextPage} prevPage={prevPage} goToPage={goToPage} />
+        </>
       )}
     </Layout>
   )

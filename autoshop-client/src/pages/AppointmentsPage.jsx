@@ -4,12 +4,14 @@ import Layout from '../components/Layout'
 import SearchBar from '../components/SearchBar'
 import TableMeta from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
+import Pagination from '../components/Pagination' // Added
 import Toast from '../components/Toast'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
 import { useAuth } from '../context/AuthContext'
 import { useLocation } from '../context/LocationContext'
 import { useError } from '../hooks/useError'
+import { usePagination } from '../hooks/usePagination' // Added
 
 const STATUS_BADGE = {
   scheduled:  { ...shared.badge, ...shared.badgeBlue   },
@@ -35,9 +37,10 @@ export default function AppointmentsPage() {
     scheduled_at: '', duration_estimate: '', notes: ''
   })
 
-  const { user }            = useAuth()
   const { currentLocation } = useLocation()
-  const { toggle, sort, indicator } = useSort('scheduled_at', 'asc')
+  
+  // Destructured sortKey to fix header indicators
+  const { toggle, sort, indicator, sortKey } = useSort('scheduled_at', 'asc')
   const { error, success, showError, showSuccess } = useError()
 
   useEffect(() => { if (currentLocation) fetchAll() }, [currentLocation])
@@ -111,8 +114,18 @@ export default function AppointmentsPage() {
     })
   )
 
-  const upcoming = filtered.filter(a => new Date(a.scheduled_at) >= now && a.status !== 'cancelled')
-  const past     = filtered.filter(a => new Date(a.scheduled_at) <  now || a.status === 'cancelled')
+  const upcomingData = filtered.filter(a => new Date(a.scheduled_at) >= now && a.status !== 'cancelled')
+  const pastData     = filtered.filter(a => new Date(a.scheduled_at) <  now || a.status === 'cancelled')
+
+  // Pagination for both sections
+  const upcomingPaginator = usePagination(upcomingData, 10)
+  const pastPaginator     = usePagination(pastData, 10)
+
+  // Reset pagination on search or filter
+  useEffect(() => { 
+    upcomingPaginator.reset()
+    pastPaginator.reset()
+  }, [search, filterStatus])
 
   if (loading) return <Layout><p style={shared.empty}>Loading...</p></Layout>
 
@@ -212,29 +225,33 @@ export default function AppointmentsPage() {
 
       <TableMeta total={appointments.length} showing={filtered.length} label="appointments" />
 
-      {upcoming.length > 0 && (
-        <>
-          <p style={styles.sectionLabel}>📅 Upcoming ({upcoming.length})</p>
+      {upcomingData.length > 0 && (
+        <div style={{ marginBottom: '2rem' }}>
+          <p style={styles.sectionLabel}>📅 Upcoming ({upcomingData.length})</p>
           <AppointmentTable
-            appointments={upcoming}
+            appointments={upcomingPaginator.paginated}
             toggle={toggle}
             indicator={indicator}
+            sortKey={sortKey}
             onStatusChange={handleStatusChange}
             highlight
           />
-        </>
+          <Pagination {...upcomingPaginator} />
+        </div>
       )}
 
-      {past.length > 0 && (
-        <>
-          <p style={{ ...styles.sectionLabel, marginTop: '1.5rem' }}>🗂 Past & Cancelled ({past.length})</p>
+      {pastData.length > 0 && (
+        <div style={{ marginBottom: '2rem' }}>
+          <p style={{ ...styles.sectionLabel, marginTop: '1.5rem' }}>🗂 Past & Cancelled ({pastData.length})</p>
           <AppointmentTable
-            appointments={past}
+            appointments={pastPaginator.paginated}
             toggle={toggle}
             indicator={indicator}
+            sortKey={sortKey}
             onStatusChange={handleStatusChange}
           />
-        </>
+          <Pagination {...pastPaginator} />
+        </div>
       )}
 
       {filtered.length === 0 && (
@@ -248,19 +265,19 @@ export default function AppointmentsPage() {
   )
 }
 
-function AppointmentTable({ appointments, toggle, indicator, onStatusChange, highlight }) {
+function AppointmentTable({ appointments, toggle, indicator, sortKey, onStatusChange, highlight }) {
   return (
-    <div style={{ ...shared.tableWrapper, marginBottom: '1rem' }}>
+    <div style={shared.tableWrapper}>
       <table style={shared.table}>
         <thead style={shared.thead}>
           <tr>
-            <SortableTh label="Date & Time"  sortKey="scheduled_at"   currentKey="scheduled_at"   onSort={toggle} indicator={indicator} />
-            <SortableTh label="Customer"     sortKey="customer_name"  currentKey="customer_name"  onSort={toggle} indicator={indicator} />
-            <SortableTh label="Vehicle"      sortKey="make"           currentKey="make"           onSort={toggle} indicator={indicator} />
+            <SortableTh label="Date & Time" sortKey="scheduled_at"  currentKey={sortKey} onSort={toggle} indicator={indicator} />
+            <SortableTh label="Customer"    sortKey="customer_name" currentKey={sortKey} onSort={toggle} indicator={indicator} />
+            <SortableTh label="Vehicle"     sortKey="make"          currentKey={sortKey} onSort={toggle} indicator={indicator} />
             <th style={shared.th}>Mechanic</th>
             <th style={shared.th}>Duration</th>
             <th style={shared.th}>Notes</th>
-            <SortableTh label="Status"       sortKey="status"         currentKey="status"         onSort={toggle} indicator={indicator} />
+            <SortableTh label="Status"      sortKey="status"        currentKey={sortKey} onSort={toggle} indicator={indicator} />
             <th style={shared.th}>Update Status</th>
           </tr>
         </thead>

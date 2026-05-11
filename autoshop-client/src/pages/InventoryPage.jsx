@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import api from '../api'
 import Layout from '../components/Layout'
 import Toast from '../components/Toast'
+import Pagination from '../components/Pagination' // [NEW]
 import { shared } from '../styles/shared'
 import { useLocation } from '../context/LocationContext'
 import { useAuth } from '../context/AuthContext'
 import { useError } from '../hooks/useError'
+import { usePagination } from '../hooks/usePagination' // [NEW]
 
 export default function InventoryPage() {
   const [stock, setStock]       = useState([])
@@ -21,8 +23,14 @@ export default function InventoryPage() {
   
   const LOCATION_ID = user?.location_id
 
+  // [NEW] Initialize Pagination with stock data
+  const { page, totalPages, paginated, nextPage, prevPage, goToPage, reset } = usePagination(stock, 15)
+
   useEffect(() => {
-    if (currentLocation) fetchAll()
+    if (currentLocation) {
+      fetchAll()
+      reset() // [NEW] Reset to page 1 when location changes
+    }
   }, [currentLocation])
 
   async function fetchAll() {
@@ -125,38 +133,50 @@ export default function InventoryPage() {
           <p style={styles.emptyText}>No inventory at {currentLocation?.name} yet</p>
         </div>
       ) : (
-        <div style={shared.tableWrapper}>
-          <table style={shared.table}>
-            <thead style={shared.thead}>
-              <tr>
-                <th style={shared.th}>Part</th>
-                <th style={shared.th}>Part #</th>
-                <th style={shared.th}>Supplier</th>
-                <th style={shared.th}>Stock</th>
-                <th style={shared.th}>Min Stock</th>
-                <th style={shared.th}>Sale Price</th>
-                <th style={shared.th}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stock.map(s => (
-                <tr key={s.part_id} style={shared.tr}>
-                  <td style={{ ...shared.td, fontWeight: '600' }}>{s.part_name}</td>
-                  <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>{s.part_number || '—'}</td>
-                  <td style={shared.td}>{s.supplier_name || '—'}</td>
-                  <td style={{ ...shared.td, fontWeight: '700' }}>{s.stock}</td>
-                  <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>{s.min_stock}</td>
-                  <td style={shared.td}>${parseFloat(s.sale_price).toFixed(2)}</td>
-                  <td style={shared.td}>
-                    <span style={{ ...shared.badge, ...(s.is_low_stock ? shared.badgeRed : shared.badgeGreen) }}>
-                      {s.is_low_stock ? 'Low Stock' : 'OK'}
-                    </span>
-                  </td>
+        <>
+          <div style={shared.tableWrapper}>
+            <table style={shared.table}>
+              <thead style={shared.thead}>
+                <tr>
+                  <th style={shared.th}>Part</th>
+                  <th style={shared.th}>Part #</th>
+                  <th style={shared.th}>Supplier</th>
+                  <th style={shared.th}>Stock</th>
+                  <th style={shared.th}>Min Stock</th>
+                  <th style={shared.th}>Sale Price</th>
+                  <th style={shared.th}>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {/* [MODIFIED] Use paginated data */}
+                {paginated.map(s => (
+                  <tr key={s.part_id} style={shared.tr}>
+                    <td style={{ ...shared.td, fontWeight: '600' }}>{s.part_name}</td>
+                    <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>{s.part_number || '—'}</td>
+                    <td style={shared.td}>{s.supplier_name || '—'}</td>
+                    <td style={{ ...shared.td, fontWeight: '700' }}>{s.stock}</td>
+                    <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>{s.min_stock}</td>
+                    <td style={shared.td}>${parseFloat(s.sale_price).toFixed(2)}</td>
+                    <td style={shared.td}>
+                      <span style={{ ...shared.badge, ...(s.is_low_stock ? shared.badgeRed : shared.badgeGreen) }}>
+                        {s.is_low_stock ? 'Low Stock' : 'OK'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          {/* [NEW] Pagination Controls */}
+          <Pagination 
+            page={page} 
+            totalPages={totalPages} 
+            nextPage={nextPage} 
+            prevPage={prevPage} 
+            goToPage={goToPage} 
+          />
+        </>
       )}
     </Layout>
   )

@@ -4,15 +4,13 @@ import Layout from '../components/Layout'
 import SearchBar from '../components/SearchBar'
 import TableMeta from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
+import Pagination from '../components/Pagination'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
+import { usePagination } from '../hooks/usePagination'
 import { useLocation } from '../context/LocationContext'
-import { useError } from '../hooks/useError'
-import Toast from '../components/Toast'
 
 export default function MechanicsPage() {
-  const { error, success, showError, showSuccess } = useError()
-  
   const [mechanics, setMechanics] = useState([])
   const [loading, setLoading]     = useState(true)
   const [showForm, setShowForm]   = useState(false)
@@ -23,8 +21,10 @@ export default function MechanicsPage() {
   })
   const [showPassword, setShowPassword] = useState(false)
 
-  const { currentLocation }         = useLocation()
-  const { toggle, sort, indicator } = useSort('name')
+  const { currentLocation } = useLocation()
+  
+  // Destructure sortKey to track which column is actually active
+  const { toggle, sort, indicator, sortKey } = useSort('name')
 
   useEffect(() => { if (currentLocation) fetchMechanics() }, [currentLocation])
 
@@ -47,12 +47,11 @@ export default function MechanicsPage() {
         location_id: currentLocation.location_id,
         specialty:   form.specialty || null,
       })
-      showSuccess('Mechanic created successfully')
       setForm({ name: '', username: '', password: '', specialty: '' })
       setShowForm(false)
       fetchMechanics()
     } catch (err) {
-      showError(err.response?.data?.message || 'Failed to create mechanic')
+      alert(err.response?.data?.message || 'Failed to create mechanic')
     } finally { setSaving(false) }
   }
 
@@ -67,7 +66,13 @@ export default function MechanicsPage() {
     })
   )
 
-  if (loading) return <Layout><p style={shared.empty}>Loading...</p><Toast error={error} success={success} /></Layout>
+  // Pagination Logic
+  const { page, totalPages, paginated, nextPage, prevPage, goToPage, reset } = usePagination(filtered, 20)
+
+  // Reset to page 1 when search changes
+  useEffect(() => { reset() }, [search])
+
+  if (loading) return <Layout><p style={shared.empty}>Loading...</p></Layout>
 
   return (
     <Layout>
@@ -161,51 +166,59 @@ export default function MechanicsPage() {
           {search && <button style={shared.btnGhost} onClick={() => setSearch('')}>Clear search</button>}
         </div>
       ) : (
-        <div style={shared.tableWrapper}>
-          <table style={shared.table}>
-            <thead style={shared.thead}>
-              <tr>
-                <SortableTh label="Name"      sortKey="name"      currentKey="name"      onSort={toggle} indicator={indicator} />
-                <SortableTh label="Username"  sortKey="username"  currentKey="username"  onSort={toggle} indicator={indicator} />
-                <SortableTh label="Specialty" sortKey="specialty" currentKey="specialty" onSort={toggle} indicator={indicator} />
-                <th style={shared.th}>Location</th>
-                <SortableTh label="Status"    sortKey="is_active" currentKey="is_active" onSort={toggle} indicator={indicator} />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(m => (
-                <tr key={m.mechanic_id} style={shared.tr}>
-                  <td style={{ ...shared.td, fontWeight: '600' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                      <div style={styles.avatar}>
-                        {m.name.charAt(0).toUpperCase()}
-                      </div>
-                      {m.name}
-                    </div>
-                  </td>
-                  <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>@{m.username}</td>
-                  <td style={shared.td}>
-                    {m.specialty
-                      ? <span style={{ ...shared.badge, ...shared.badgeBlue }}>{m.specialty}</span>
-                      : <span style={{ color: 'var(--text-muted)' }}>—</span>
-                    }
-                  </td>
-                  <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>
-                    {m.location_id}
-                  </td>
-                  <td style={shared.td}>
-                    <span style={{ ...shared.badge, ...(m.is_active ? shared.badgeGreen : shared.badgeRed) }}>
-                      {m.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
+        <>
+          <div style={shared.tableWrapper}>
+            <table style={shared.table}>
+              <thead style={shared.thead}>
+                <tr>
+                  <SortableTh label="Name"      sortKey="name"      currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Username"  sortKey="username"  currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Specialty" sortKey="specialty" currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                  <th style={shared.th}>Location</th>
+                  <SortableTh label="Status"    sortKey="is_active" currentKey={sortKey} onSort={toggle} indicator={indicator} />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {paginated.map(m => (
+                  <tr key={m.mechanic_id} style={shared.tr}>
+                    <td style={{ ...shared.td, fontWeight: '600' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <div style={styles.avatar}>
+                          {m.name.charAt(0).toUpperCase()}
+                        </div>
+                        {m.name}
+                      </div>
+                    </td>
+                    <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>@{m.username}</td>
+                    <td style={shared.td}>
+                      {m.specialty
+                        ? <span style={{ ...shared.badge, ...shared.badgeBlue }}>{m.specialty}</span>
+                        : <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      }
+                    </td>
+                    <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>
+                      {m.location_id}
+                    </td>
+                    <td style={shared.td}>
+                      <span style={{ ...shared.badge, ...(m.is_active ? shared.badgeGreen : shared.badgeRed) }}>
+                        {m.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          <Pagination 
+            page={page} 
+            totalPages={totalPages} 
+            nextPage={nextPage} 
+            prevPage={prevPage} 
+            goToPage={goToPage} 
+          />
+        </>
       )}
-      
-      <Toast error={error} success={success} />
     </Layout>
   )
 }

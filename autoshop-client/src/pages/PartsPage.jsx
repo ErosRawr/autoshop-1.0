@@ -4,10 +4,12 @@ import Layout from '../components/Layout'
 import SearchBar from '../components/SearchBar'
 import TableMeta from '../components/TableMeta'
 import SortableTh from '../components/SortableTh'
+import Pagination from '../components/Pagination' // Added
 import Toast from '../components/Toast'
 import { shared } from '../styles/shared'
 import { useSort } from '../hooks/useSort'
 import { useError } from '../hooks/useError'
+import { usePagination } from '../hooks/usePagination' // Added
 
 export default function PartsPage() {
   const [parts, setParts]         = useState([])
@@ -21,7 +23,8 @@ export default function PartsPage() {
     supplier_id: '', cost_price: '', sale_price: ''
   })
   
-  const { toggle, sort, indicator } = useSort('name')
+  // Destructured sortKey to fix header indicators
+  const { toggle, sort, indicator, sortKey } = useSort('name')
   const { error, success, showError, showSuccess } = useError()
 
   useEffect(() => { fetchAll() }, [])
@@ -73,6 +76,12 @@ export default function PartsPage() {
       )
     })
   )
+
+  // Pagination Logic
+  const { page, totalPages, paginated, nextPage, prevPage, goToPage, reset } = usePagination(filtered, 15)
+
+  // Reset to page 1 when searching
+  useEffect(() => { reset() }, [search])
 
   if (loading) return <Layout><p style={shared.empty}>Loading...</p></Layout>
 
@@ -145,51 +154,54 @@ export default function PartsPage() {
           {search && <button style={shared.btnGhost} onClick={() => setSearch('')}>Clear search</button>}
         </div>
       ) : (
-        <div style={shared.tableWrapper}>
-          <table style={shared.table}>
-            <thead style={shared.thead}>
-              <tr>
-                <SortableTh label="Name"        sortKey="name"          currentKey="name"          onSort={toggle} indicator={indicator} />
-                <SortableTh label="Part #"      sortKey="part_number"   currentKey="part_number"   onSort={toggle} indicator={indicator} />
-                <SortableTh label="Supplier"    sortKey="supplier_name" currentKey="supplier_name" onSort={toggle} indicator={indicator} />
-                <SortableTh label="Cost"        sortKey="cost_price"    currentKey="cost_price"    onSort={toggle} indicator={indicator} />
-                <SortableTh label="Sale Price"  sortKey="sale_price"    currentKey="sale_price"    onSort={toggle} indicator={indicator} />
-                <th style={shared.th}>Margin</th>
-                <SortableTh label="Status"      sortKey="is_active"     currentKey="is_active"     onSort={toggle} indicator={indicator} />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(p => {
-                const margin = parseFloat(p.sale_price) - parseFloat(p.cost_price)
-                const marginPct = ((margin / parseFloat(p.sale_price)) * 100).toFixed(1)
-                return (
-                  <tr key={p.part_id} style={shared.tr}>
-                    <td style={{ ...shared.td, fontWeight: '600' }}>
-                      {p.name}
-                      {p.description && (
-                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>{p.description}</p>
-                      )}
-                    </td>
-                    <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>{p.part_number || '—'}</td>
-                    <td style={shared.td}>{p.supplier_name || '—'}</td>
-                    <td style={shared.td}>${parseFloat(p.cost_price).toFixed(2)}</td>
-                    <td style={{ ...shared.td, fontWeight: '700' }}>${parseFloat(p.sale_price).toFixed(2)}</td>
-                    <td style={shared.td}>
-                      <span style={{ ...shared.badge, ...shared.badgeGreen }}>
-                        {marginPct}%
-                      </span>
-                    </td>
-                    <td style={shared.td}>
-                      <span style={{ ...shared.badge, ...(p.is_active ? shared.badgeGreen : shared.badgeRed) }}>
-                        {p.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div style={shared.tableWrapper}>
+            <table style={shared.table}>
+              <thead style={shared.thead}>
+                <tr>
+                  <SortableTh label="Name"        sortKey="name"          currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Part #"      sortKey="part_number"   currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Supplier"    sortKey="supplier_name" currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Cost"        sortKey="cost_price"    currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                  <SortableTh label="Sale Price"  sortKey="sale_price"    currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                  <th style={shared.th}>Margin</th>
+                  <SortableTh label="Status"      sortKey="is_active"     currentKey={sortKey} onSort={toggle} indicator={indicator} />
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map(p => {
+                  const margin = parseFloat(p.sale_price) - parseFloat(p.cost_price)
+                  const marginPct = ((margin / parseFloat(p.sale_price)) * 100).toFixed(1)
+                  return (
+                    <tr key={p.part_id} style={shared.tr}>
+                      <td style={{ ...shared.td, fontWeight: '600' }}>
+                        {p.name}
+                        {p.description && (
+                          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>{p.description}</p>
+                        )}
+                      </td>
+                      <td style={{ ...shared.td, color: 'var(--text-secondary)' }}>{p.part_number || '—'}</td>
+                      <td style={shared.td}>{p.supplier_name || '—'}</td>
+                      <td style={shared.td}>${parseFloat(p.cost_price).toFixed(2)}</td>
+                      <td style={{ ...shared.td, fontWeight: '700' }}>${parseFloat(p.sale_price).toFixed(2)}</td>
+                      <td style={shared.td}>
+                        <span style={{ ...shared.badge, ...shared.badgeGreen }}>
+                          {marginPct}%
+                        </span>
+                      </td>
+                      <td style={shared.td}>
+                        <span style={{ ...shared.badge, ...(p.is_active ? shared.badgeGreen : shared.badgeRed) }}>
+                          {p.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <Pagination page={page} totalPages={totalPages} nextPage={nextPage} prevPage={prevPage} goToPage={goToPage} />
+        </>
       )}
     </Layout>
   )
