@@ -12,5 +12,6 @@ router.get('/:id',    ctrl.getOne)
 router.post('/',      authorize('admin', 'receptionist'), validate(validateCustomer), ctrl.create)
 router.put('/:id',    authorize('admin', 'receptionist'), validate(validateCustomer), ctrl.update)
 router.delete('/:id', authorize('admin'), ctrl.remove)
+router.patch('/:id/status', authorize('admin'), ctrl.setStatus)
 
 module.exports = router

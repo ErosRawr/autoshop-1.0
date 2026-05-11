@@ -111,10 +111,29 @@ async function remove(req, res) {
   }
 }
 
-module.exports = {
-  getAll,
-  getOne,
-  create,
-  update,
-  remove
+async function setStatus(req, res) {
+  const { id }        = req.params
+  const { is_active } = req.body
+
+  if (typeof is_active !== 'boolean') {
+    return res.status(400).json({ message: 'is_active must be a boolean' })
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE customers SET is_active = $1, updated_at = now()
+       WHERE customer_id = $2
+       RETURNING customer_id, name, is_active`,
+      [is_active, id]
+    )
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Customer not found' })
+    }
+    res.json(result.rows[0])
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Server error' })
+  }
 }
+
+module.exports = { getAll, getOne, create, update, remove, setStatus }
