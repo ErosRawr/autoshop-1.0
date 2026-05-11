@@ -35,6 +35,7 @@ const NAV_GROUPS = [
     links: [
       { to: '/parts',     label: 'Parts',     roles: ['admin'] },
       { to: '/suppliers', label: 'Suppliers', roles: ['admin'] },
+      {to: '/locations', label: 'Locations', roles: ['admin'] },
     ]
   },
   {

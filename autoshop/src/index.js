@@ -14,7 +14,7 @@ const paymentRoutes  = require('./routes/payments.routes')
 const mechanicRoutes     = require('./routes/mechanics.routes')
 const serviceRoutes      = require('./routes/services.routes')
 const appointmentRoutes  = require('./routes/appointments.routes')
-const locationRoutes     = require('./routes/locations.routes')
+const locationRoutes = require('./routes/locations.routes')
 const userRoutes = require('./routes/users.routes')
 
 const app  = express()
