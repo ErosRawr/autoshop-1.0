@@ -42,7 +42,6 @@ const NAV_GROUPS = [
     label: 'Staff',
     roles: ['admin'],
     links: [
-      { to: '/mechanics', label: 'Mechanics', roles: ['admin'] },
       { to: '/users',     label: 'Users',     roles: ['admin'] },
     ]
   },
