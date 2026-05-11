@@ -8,7 +8,6 @@ import CustomersPage   from './pages/CustomersPage'
 import VehiclesPage    from './pages/VehiclesPage'
 import WorkOrdersPage  from './pages/WorkOrdersPage'
 import AppointmentsPage from './pages/AppointmentsPage'
-import MechanicsPage from './pages/MechanicsPage'
 import InvoicesPage    from './pages/InvoicesPage'
 import InventoryPage   from './pages/InventoryPage'
 import LocationsPage from './pages/LocationsPage'
@@ -77,12 +76,6 @@ function AppRoutes() {
       <Route path="/appointments" element={
         <ProtectedRoute>
           <AppointmentsPage />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/mechanics" element={
-        <ProtectedRoute>
-          <MechanicsPage />
         </ProtectedRoute>
       } />
 

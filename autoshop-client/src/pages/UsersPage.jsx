@@ -31,7 +31,8 @@ export default function UsersPage() {
   const [newPassword, setNewPassword]         = useState('')
   const [showPassword, setShowPassword]       = useState(false)
   const [form, setForm] = useState({
-    name: '', username: '', password: '', role: 'receptionist', location_id: ''
+    name: '', username: '', password: '', role: 'receptionist',
+    location_id: '', specialty: ''
   })
 
   const { user: currentUser }       = useAuth()
@@ -52,14 +53,37 @@ export default function UsersPage() {
     finally { setLoading(false) }
   }
 
-  function handleChange(e) { setForm({ ...form, [e.target.name]: e.target.value }) }
+  function handleChange(e) {
+    const updated = { ...form, [e.target.name]: e.target.value }
+    // Clear specialty if switching away from mechanic
+    if (e.target.name === 'role' && e.target.value !== 'mechanic') {
+      updated.specialty = ''
+    }
+    setForm(updated)
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setSaving(true)
     try {
-      await api.post('/users', form)
-      setForm({ name: '', username: '', password: '', role: 'receptionist', location_id: '' })
+      if (form.role === 'mechanic') {
+        await api.post('/mechanics', {
+          name:        form.name,
+          username:    form.username,
+          password:    form.password,
+          location_id: form.location_id,
+          specialty:   form.specialty || null,
+        })
+      } else {
+        await api.post('/users', {
+          name:        form.name,
+          username:    form.username,
+          password:    form.password,
+          role:        form.role,
+          location_id: form.location_id,
+        })
+      }
+      setForm({ name: '', username: '', password: '', role: 'receptionist', location_id: '', specialty: '' })
       setShowForm(false)
       showSuccess('User created successfully')
       fetchAll()
@@ -98,9 +122,9 @@ export default function UsersPage() {
       const matchesSearch = u.name.toLowerCase().includes(q) ||
                             u.username.toLowerCase().includes(q) ||
                             (u.location_name || '').toLowerCase().includes(q)
-      const matchesRole   = filterRole   ? u.role      === filterRole   : true
-      const matchesStatus = filterStatus === 'active'   ? u.is_active  === true  :
-                            filterStatus === 'inactive' ? u.is_active  === false : true
+      const matchesRole   = filterRole   ? u.role     === filterRole   : true
+      const matchesStatus = filterStatus === 'active'   ? u.is_active === true  :
+                            filterStatus === 'inactive' ? u.is_active === false : true
       return matchesSearch && matchesRole && matchesStatus
     })
   )
@@ -145,10 +169,7 @@ export default function UsersPage() {
 
       {showForm && (
         <div style={{ ...shared.card, marginBottom: '1.5rem' }}>
-          <h3 style={{ fontWeight: '700', marginBottom: '0.25rem' }}>New User</h3>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-            For mechanic accounts use the Mechanics page — this creates admin and receptionist accounts only.
-          </p>
+          <h3 style={{ fontWeight: '700', marginBottom: '1rem' }}>New User</h3>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={shared.formGrid}>
               <div style={shared.field}>
@@ -202,6 +223,7 @@ export default function UsersPage() {
                 <select style={shared.input} name="role" value={form.role} onChange={handleChange} required>
                   <option value="receptionist">Receptionist</option>
                   <option value="admin">Admin</option>
+                  <option value="mechanic">Mechanic</option>
                 </select>
               </div>
               <div style={shared.field}>
@@ -213,6 +235,18 @@ export default function UsersPage() {
                   ))}
                 </select>
               </div>
+              {form.role === 'mechanic' && (
+                <div style={shared.field}>
+                  <label style={shared.label}>Specialty</label>
+                  <input
+                    style={shared.input}
+                    name="specialty"
+                    value={form.specialty}
+                    onChange={handleChange}
+                    placeholder="Engine, Electrical, Bodywork..."
+                  />
+                </div>
+              )}
             </div>
             <button style={shared.btnSuccess} type="submit" disabled={saving}>
               {saving ? 'Creating...' : 'Create User'}
@@ -293,8 +327,9 @@ export default function UsersPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <div style={{
                           ...styles.avatar,
-                          backgroundColor: u.role === 'admin' ? 'var(--accent-danger)' :
-                                           u.role === 'receptionist' ? 'var(--accent)' : 'var(--accent-warning)'
+                          backgroundColor: u.role === 'admin'        ? 'var(--accent-danger)'  :
+                                           u.role === 'receptionist' ? 'var(--accent)'         :
+                                                                       'var(--accent-warning)'
                         }}>
                           {u.name.charAt(0).toUpperCase()}
                         </div>
